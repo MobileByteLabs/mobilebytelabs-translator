@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material';
 import GradientButton from '../ui/GradientButton';
 import { AuthService } from '../../utils/auth';
+import { getStoredGeminiApiKey } from '../../utils/gemini';
 
 interface StringResource {
   key: string;
@@ -74,6 +75,14 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [translationResults, setTranslationResults] = useState<any[]>([]);
   const [showCompletion, setShowCompletion] = useState(false);
+
+  // Auto-fill Gemini API key from localStorage on component mount
+  useEffect(() => {
+    const storedApiKey = getStoredGeminiApiKey();
+    if (storedApiKey) {
+      setGeminiApiKey(storedApiKey);
+    }
+  }, []);
 
   const getLanguageDisplayName = (code: string): string => {
     const languageNames: { [key: string]: string } = {
