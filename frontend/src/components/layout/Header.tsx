@@ -52,7 +52,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
     { label: 'Home', path: '/', icon: <Home sx={{ fontSize: 20 }} /> },
     { label: 'Dashboard', path: '/dashboard', icon: <Dashboard sx={{ fontSize: 20 }} /> },
     { label: 'Settings', path: '/settings', icon: <Settings sx={{ fontSize: 20 }} /> },
-  ];
+  ].filter(item => {
+    // Hide Home button when on dashboard
+    if (item.path === '/' && location.pathname === '/dashboard') {
+      return false;
+    }
+    return true;
+  });
 
   const isActivePath = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -79,6 +85,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
               alignItems: 'center',
               gap: 2,
               cursor: 'pointer',
+              flex: 1,
             }}
             onClick={() => navigate('/')}
           >
@@ -100,7 +107,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
 
           {/* Navigation (when user is logged in) */}
           {user && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flex: 1,
+              justifyContent: 'center'
+            }}>
               {navItems.map((item) => (
                 <Button
                   key={item.path}
@@ -108,16 +121,16 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
                   onClick={() => navigate(item.path)}
                   sx={{
                     color: isActivePath(item.path) ? '#6366f1' : 'rgba(255,255,255,0.8)',
-                    backgroundColor: isActivePath(item.path) 
-                      ? 'rgba(99, 102, 241, 0.1)' 
+                    backgroundColor: isActivePath(item.path)
+                      ? 'rgba(99, 102, 241, 0.1)'
                       : 'transparent',
                     borderRadius: 2,
                     px: 2,
                     py: 1,
                     textTransform: 'none',
                     fontWeight: isActivePath(item.path) ? 600 : 400,
-                    border: isActivePath(item.path) 
-                      ? '1px solid rgba(99, 102, 241, 0.3)' 
+                    border: isActivePath(item.path)
+                      ? '1px solid rgba(99, 102, 241, 0.3)'
                       : '1px solid transparent',
                     '&:hover': {
                       backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -132,7 +145,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
           )}
 
           {/* User Menu or Login Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'flex-end' }}>
             {user ? (
               <>
                 {/* User Status Chip */}

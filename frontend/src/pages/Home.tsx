@@ -20,9 +20,17 @@ import {
 // Components
 import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
+import { AuthService } from '../utils/auth';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+
+  // Redirect to dashboard if user is already logged in
+  React.useEffect(() => {
+    if (AuthService.isAuthenticated()) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   const features = [
     {
