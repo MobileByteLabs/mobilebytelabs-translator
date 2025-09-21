@@ -33,7 +33,6 @@ import {
 } from '@mui/icons-material';
 
 // Components
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 import { AuthService, User } from '../utils/auth';
 
@@ -169,25 +168,23 @@ const Dashboard: React.FC = () => {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <Layout backgroundVariant="dashboard">
-        <Container maxWidth="lg">
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            minHeight: '50vh',
-            flexDirection: 'column',
-            gap: 2
-          }}>
-            <Typography variant="h5" sx={{ color: 'white' }}>
-              Loading...
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-              Authenticating with GitHub
-            </Typography>
-          </Box>
-        </Container>
-      </Layout>
+      <Container maxWidth="lg">
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '50vh',
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <Typography variant="h5" sx={{ color: 'white' }}>
+            Loading...
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+            Authenticating with GitHub
+          </Typography>
+        </Box>
+      </Container>
     );
   }
 
@@ -300,14 +297,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <Layout 
-      backgroundVariant="dashboard" 
-      user={user} 
-      onLogout={async () => {
-        await AuthService.logout();
-        navigate('/');
-      }}
-    >
+    <>
       <Container maxWidth="lg">
         <Box sx={{ py: 6 }}>
           {/* Header */}
@@ -757,7 +747,7 @@ const Dashboard: React.FC = () => {
           </GradientButton>
         </DialogActions>
       </Dialog>
-    </Layout>
+    </>
   );
 };
 

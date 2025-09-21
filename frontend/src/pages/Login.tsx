@@ -22,7 +22,6 @@ import {
 } from '@mui/icons-material';
 
 // Components
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 import { AuthService } from '../utils/auth';
 
@@ -61,8 +60,7 @@ const Login: React.FC = () => {
   ];
 
   return (
-    <Layout backgroundVariant="minimal" showFooter={false}>
-      <Container maxWidth="md">
+    <Container maxWidth="md">
         <Box sx={{ py: 8 }}>
           {/* Back to Home */}
           <Box sx={{ mb: 4 }}>
@@ -221,7 +219,6 @@ const Login: React.FC = () => {
           </Box>
         </Box>
       </Container>
-    </Layout>
   );
 };
 

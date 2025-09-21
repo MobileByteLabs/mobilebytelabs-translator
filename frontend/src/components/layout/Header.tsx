@@ -69,10 +69,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
     <Box
       sx={{
         py: 2,
-        position: 'relative',
-        zIndex: 10,
-        background: 'rgba(15, 15, 35, 0.9)',
-        backdropFilter: 'blur(10px)',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: 'rgba(15, 15, 35, 0.95)',
+        backdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
       }}
     >
@@ -105,8 +108,8 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             </Typography>
           </Box>
 
-          {/* Navigation (when user is logged in) */}
-          {user && (
+          {/* Navigation - always show when not on login page */}
+          {location.pathname !== '/login' && (
             <Box sx={{
               display: 'flex',
               alignItems: 'center',

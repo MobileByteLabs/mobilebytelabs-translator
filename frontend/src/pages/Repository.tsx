@@ -37,7 +37,6 @@ import {
 } from '@mui/icons-material';
 
 // Components
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 
 interface TranslationString {
@@ -156,12 +155,7 @@ const Repository: React.FC = () => {
   };
 
   return (
-    <Layout 
-      backgroundVariant="dashboard" 
-      user={user} 
-      onLogout={() => navigate('/')}
-    >
-      <Container maxWidth="lg">
+    <Container maxWidth="lg">
         <Box sx={{ py: 6 }}>
           {/* Header */}
           <Box sx={{ mb: 4 }}>
@@ -444,7 +438,6 @@ const Repository: React.FC = () => {
           </Card>
         </Box>
       </Container>
-    </Layout>
   );
 };
 
