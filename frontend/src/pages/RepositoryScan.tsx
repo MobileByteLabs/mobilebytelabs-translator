@@ -20,7 +20,6 @@ import {
   Translate,
 } from '@mui/icons-material';
 
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 import BranchSelector from '../components/scan/BranchSelector';
 import LanguageSelector from '../components/scan/LanguageSelector';
@@ -286,19 +285,16 @@ const RepositoryScan: React.FC = () => {
 
   if (!owner || !repo) {
     return (
-      <Layout backgroundVariant="dashboard">
-        <Container maxWidth="lg">
-          <Alert severity="error">
-            Invalid repository parameters
-          </Alert>
-        </Container>
-      </Layout>
+      <Container maxWidth="lg">
+        <Alert severity="error">
+          Invalid repository parameters
+        </Alert>
+      </Container>
     );
   }
 
   return (
-    <Layout backgroundVariant="dashboard">
-      <Container maxWidth="lg">
+    <Container maxWidth="lg">
         <Box sx={{ py: 4 }}>
           {/* Header */}
           <Box sx={{ mb: 4 }}>
@@ -417,7 +413,6 @@ const RepositoryScan: React.FC = () => {
           </Box>
         </Box>
       </Container>
-    </Layout>
   );
 };
 
