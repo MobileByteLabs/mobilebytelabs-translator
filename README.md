@@ -185,4 +185,4 @@ For support and questions:
 
 ---
 
-**MobileByteLabs** - Intelligent Translation Solutions
+**MobileByteLabs**
