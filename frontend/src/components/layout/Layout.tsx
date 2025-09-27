@@ -44,7 +44,8 @@ const Layout: React.FC<LayoutProps> = ({
         sx={{
           position: 'relative',
           zIndex: 10,
-          minHeight: showFooter ? 'calc(100vh - 140px)' : 'calc(100vh - 80px)',
+          paddingTop: '80px', // Space for fixed header
+          minHeight: showFooter ? 'calc(100vh - 60px)' : '100vh',
         }}
       >
         {children}

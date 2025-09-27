@@ -23,7 +23,6 @@ import {
 } from '@mui/icons-material';
 
 // Components
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 import { AuthService } from '../utils/auth';
 import { getStoredGeminiApiKey, setStoredGeminiApiKey, hasStoredGeminiApiKey } from '../utils/gemini';
@@ -77,11 +76,7 @@ const Settings: React.FC = () => {
   const hasApiKey = hasStoredGeminiApiKey();
 
   return (
-    <Layout
-      backgroundVariant="dashboard"
-      user={user}
-      onLogout={() => navigate('/')}
-    >
+    <>
       <Container maxWidth="lg">
         <Box sx={{ py: 6 }}>
           {/* Header */}
@@ -312,7 +307,7 @@ const Settings: React.FC = () => {
           </GradientButton>
         </DialogActions>
       </Dialog>
-    </Layout>
+    </>
   );
 };
 
