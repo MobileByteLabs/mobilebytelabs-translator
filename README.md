@@ -32,7 +32,7 @@ Follow these instructions to set up the project locally for development.
 - GitHub account (for OAuth integration)
 - Google Gemini AI API key
 
-### Installation
+### Quick Setup
 
 1. **Clone the repository**
    ```bash
@@ -40,50 +40,38 @@ Follow these instructions to set up the project locally for development.
    cd mobilebytelabs-translator
    ```
 
-2. **Backend Setup**
+2. **Run the setup script**
    ```bash
-   cd backend
-   npm install
+   chmod +x setup.sh
+   ./setup.sh
    ```
 
-   Create a `.env` file in the backend directory:
-   ```bash
-   cp .env.example .env
-   ```
+3. **Configure GitHub OAuth (Required)**
 
-   Configure the environment variables in `.env`:
+   Update the following variables in `backend/.env`:
    ```env
-   # Server Configuration
-   PORT=3001
-   NODE_ENV=development
-
    # GitHub OAuth (Get from https://github.com/settings/applications/new)
    GITHUB_CLIENT_ID=your_github_client_id_here
    GITHUB_CLIENT_SECRET=your_github_client_secret_here
-   GITHUB_CALLBACK_URL=http://localhost:3000/auth/github/callback
-
-   # JWT Secret (Generate a secure random string)
-   JWT_SECRET=your_very_secure_jwt_secret_here
-
-   # Session Secret
-   SESSION_SECRET=your_session_secret_here
-
-   # CORS
-   CORS_ORIGIN=http://localhost:3000
    ```
 
-3. **Frontend Setup**
+### Manual Installation (Alternative)
+
+If you prefer to set up manually:
+
+1. **Backend Setup**
    ```bash
-   cd frontend
+   cd backend
    npm install
-   ```
-
-   Create a `.env` file in the frontend directory (optional for development):
-   ```bash
    cp .env.example .env
    ```
 
-   For development, the frontend will automatically connect to `http://localhost:3001/api`.
+2. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env
+   ```
 
 ### Running the Application
 
