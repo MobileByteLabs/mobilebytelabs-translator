@@ -12,12 +12,15 @@ import {
   StepLabel,
   LinearProgress,
   Divider,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   ArrowBack,
   GitHub,
   Search,
   Translate,
+  OpenInNew,
 } from '@mui/icons-material';
 
 import GradientButton from '../components/ui/GradientButton';
@@ -323,6 +326,24 @@ const RepositoryScan: React.FC = () => {
             >
               <GitHub sx={{ fontSize: 40, color: '#6366f1' }} />
               {owner}/{repo}
+              <Tooltip title="Open on GitHub" arrow>
+                <IconButton
+                  size="medium"
+                  onClick={() => window.open(`https://github.com/${owner}/${repo}`, '_blank', 'noopener,noreferrer')}
+                  sx={{
+                    ml: 1,
+                    color: 'rgba(255,255,255,0.7)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      color: '#6366f1',
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      transform: 'scale(1.1)',
+                    },
+                  }}
+                >
+                  <OpenInNew sx={{ fontSize: 24 }} />
+                </IconButton>
+              </Tooltip>
             </Typography>
 
             <Typography
