@@ -30,6 +30,9 @@ import {
   Refresh,
   Settings,
   Visibility,
+  Business,
+  Person,
+  Info,
 } from '@mui/icons-material';
 
 // Components
@@ -53,6 +56,20 @@ interface Repository {
   htmlUrl: string;
   lastUpdated: string;
   defaultBranch: string;
+  owner: string;
+  isOrganization: boolean;
+}
+
+interface RepositoryResponse {
+  repositories: Repository[];
+  scopes?: {
+    hasRepoScope: boolean;
+    hasOrgScope: boolean;
+    hasUserEmailScope: boolean;
+    scopes: string[];
+    canAccessOrganizations: boolean;
+  };
+  message?: string;
 }
 
 const Dashboard: React.FC = () => {
@@ -65,6 +82,8 @@ const Dashboard: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
   const [repoUrl, setRepoUrl] = React.useState('');
+  const [scopeInfo, setScopeInfo] = React.useState<RepositoryResponse['scopes'] | null>(null);
+  const [scopeMessage, setScopeMessage] = React.useState<string | null>(null);
 
   // Handle OAuth callback and get user
   React.useEffect(() => {
@@ -147,11 +166,14 @@ const Dashboard: React.FC = () => {
         throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
       }
       
-      const data = await response.json();
+      const data: RepositoryResponse = await response.json();
       console.log('✅ Repositories data received:', data);
       console.log('✅ Number of repositories:', data.repositories?.length || 0);
-      
+      console.log('✅ Scope info:', data.scopes);
+
       setRepositories(data.repositories || []);
+      setScopeInfo(data.scopes || null);
+      setScopeMessage(data.message || null);
     } catch (error) {
       console.error('❌ Error fetching repositories:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch repositories');
@@ -414,6 +436,34 @@ const Dashboard: React.FC = () => {
               Your Repositories
             </Typography>
 
+            {/* Scope Information */}
+            {scopeMessage && (
+              <Alert
+                severity="warning"
+                icon={<Info />}
+                sx={{
+                  mb: 3,
+                  backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  '& .MuiAlert-icon': {
+                    color: '#fbbf24'
+                  }
+                }}
+                action={
+                  <GradientButton
+                    variant="outline"
+                    size="small"
+                    onClick={() => AuthService.reauthorizeWithScopes()}
+                  >
+                    Re-authorize
+                  </GradientButton>
+                }
+              >
+                {scopeMessage}
+              </Alert>
+            )}
+
             <Grid container spacing={3}>
               {isLoadingRepos ? (
                 // Loading skeleton
@@ -482,17 +532,47 @@ const Dashboard: React.FC = () => {
                               >
                                 {repo.name}
                               </Typography>
+                              {repo.isOrganization && (
+                                <Chip
+                                  icon={<Business sx={{ fontSize: 12 }} />}
+                                  label="Organization"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
+                                    height: 18,
+                                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                    color: '#22c55e',
+                                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                                    '& .MuiChip-icon': { fontSize: 12 }
+                                  }}
+                                />
+                              )}
+                              {!repo.isOrganization && (
+                                <Chip
+                                  icon={<Person sx={{ fontSize: 12 }} />}
+                                  label="Personal"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
+                                    height: 18,
+                                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                    color: '#6366f1',
+                                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                                    '& .MuiChip-icon': { fontSize: 12 }
+                                  }}
+                                />
+                              )}
                               {repo.isPrivate && (
-                                <Chip 
-                                  label="Private" 
-                                  size="small" 
-                                  sx={{ 
-                                    fontSize: '0.6rem', 
+                                <Chip
+                                  label="Private"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
                                     height: 18,
                                     backgroundColor: 'rgba(251, 191, 36, 0.1)',
                                     color: '#fbbf24',
                                     border: '1px solid rgba(251, 191, 36, 0.3)'
-                                  }} 
+                                  }}
                                 />
                               )}
                             </Box>

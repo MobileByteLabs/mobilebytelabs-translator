@@ -151,11 +151,20 @@ export interface User {
       if (token) {
         console.log('✅ Token found in URL, storing...');
         this.setToken(token);
-        
+
+        // Check if this was a re-authorization
+        const reauthorizationRedirect = sessionStorage.getItem('reauth_redirect');
+        if (reauthorizationRedirect) {
+          sessionStorage.removeItem('reauth_redirect');
+          console.log('✅ Re-authorization successful, redirecting back to:', reauthorizationRedirect);
+          window.location.href = reauthorizationRedirect;
+          return null; // Don't return user yet as we're redirecting
+        }
+
         // Clean up URL immediately
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
-        
+
         const user = this.getUser();
         console.log('✅ User extracted from token:', user);
         return user;
@@ -216,5 +225,27 @@ export interface User {
         console.error('GitHub connection test failed:', error);
         throw error;
       }
+    }
+
+    // Check token scopes
+    static async checkTokenScopes(): Promise<any> {
+      try {
+        const response = await this.apiRequest('/auth/scopes');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Token scope check failed:', error);
+        throw error;
+      }
+    }
+
+    // Re-authorize with additional scopes
+    static reauthorizeWithScopes(): void {
+      // Add a state parameter to track this as a re-authorization
+      const currentUrl = window.location.href;
+      sessionStorage.setItem('reauth_redirect', currentUrl);
+      window.location.href = `${this.API_BASE}/auth/github?reauth=true`;
     }
   }
