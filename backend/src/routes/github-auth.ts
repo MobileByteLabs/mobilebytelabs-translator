@@ -75,9 +75,12 @@ passport.deserializeUser((user: any, done: (err: any, user?: any) => void) => {
 // Routes
 // Start GitHub OAuth flow
 router.get('/github', (req: Request, res: Response, next) => {
-  console.log('🚀 Starting GitHub OAuth flow...');
-  passport.authenticate('github', { 
-    scope: ['user:email', 'repo'] // Request repo access for scanning
+  const isReauth = req.query.reauth === 'true';
+  console.log(`🚀 Starting GitHub OAuth flow... ${isReauth ? '(Re-authorization)' : '(Initial login)'}`);
+
+  passport.authenticate('github', {
+    scope: ['user:email', 'repo', 'read:org'], // Request repo access for scanning and organization access
+    ...(isReauth && { prompt: 'consent' }) // Force consent screen for re-authorization
   })(req, res, next);
 });
 
@@ -204,6 +207,42 @@ router.post('/github-token', async (req: Request, res: Response): Promise<void> 
   }
 });
 
+// Check token scopes
+router.get('/scopes', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      res.status(401).json({ error: 'Access token required' });
+      return;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const githubToken = decoded.user?.githubToken;
+
+    if (!githubToken) {
+      res.status(400).json({ error: 'No GitHub token found' });
+      return;
+    }
+
+    // Import GitHubService to check scopes
+    const { GitHubService } = await import('../services/githubService');
+    const githubService = new GitHubService(githubToken);
+    const scopeInfo = await githubService.getTokenScopes();
+
+    res.json({
+      scopes: scopeInfo,
+      needsReauthorization: !scopeInfo.canAccessOrganizations,
+      reauthorizeUrl: !scopeInfo.canAccessOrganizations ?
+        `${req.protocol}://${req.get('Host')}/api/auth/github?reauth=true` : null
+    });
+  } catch (error) {
+    console.error('❌ Token scope check error:', error);
+    res.status(500).json({ error: 'Failed to check token scopes' });
+  }
+});
+
 // Test endpoint to verify GitHub token works
 router.get('/test-github', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -236,7 +275,7 @@ router.get('/test-github', async (req: Request, res: Response): Promise<void> =>
     }
 
     const githubUser = await response.json();
-    
+
     // Type assertion for GitHub user response
     const typedGithubUser = githubUser as {
       login: string;
@@ -244,7 +283,7 @@ router.get('/test-github', async (req: Request, res: Response): Promise<void> =>
       public_repos: number;
       followers: number;
     };
-    
+
     res.json({
       message: 'GitHub token is valid!',
       user: {

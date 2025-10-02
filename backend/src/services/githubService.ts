@@ -35,6 +35,16 @@ export interface ProcessedRepository {
   languages: string[];
   isTranslatable: boolean;
   estimatedStrings: number;
+  owner: string;
+  isOrganization: boolean;
+}
+
+export interface TokenScopeInfo {
+  hasRepoScope: boolean;
+  hasOrgScope: boolean;
+  hasUserEmailScope: boolean;
+  scopes: string[];
+  canAccessOrganizations: boolean;
 }
 
 export class GitHubService {
@@ -47,23 +57,106 @@ export class GitHubService {
     });
   }
 
-  // Get user's repositories
+  // Check token scopes
+  async getTokenScopes(): Promise<TokenScopeInfo> {
+    try {
+      const response = await this.octokit.rest.users.getAuthenticated();
+      const scopeHeader = response.headers['x-oauth-scopes'] || '';
+      const scopes = scopeHeader.split(',').map(s => s.trim()).filter(s => s);
+
+      return {
+        hasRepoScope: scopes.includes('repo') || scopes.includes('public_repo'),
+        hasOrgScope: scopes.includes('read:org'),
+        hasUserEmailScope: scopes.includes('user:email') || scopes.includes('user'),
+        scopes,
+        canAccessOrganizations: scopes.includes('read:org'),
+      };
+    } catch (error) {
+      console.error('❌ Error checking token scopes:', error);
+      return {
+        hasRepoScope: false,
+        hasOrgScope: false,
+        hasUserEmailScope: false,
+        scopes: [],
+        canAccessOrganizations: false,
+      };
+    }
+  }
+
+  // Get user's repositories (personal and organization)
   async getUserRepositories(includePrivate: boolean = true): Promise<ProcessedRepository[]> {
     try {
-      console.log('📂 Fetching user repositories...');
-      
-      const response = await this.octokit.rest.repos.listForAuthenticatedUser({
+      console.log('📂 Fetching user and organization repositories...');
+
+      // Check token scopes first
+      const scopeInfo = await this.getTokenScopes();
+      console.log('🔍 Token scopes:', scopeInfo);
+
+      // Fetch personal repositories
+      const personalResponse = await this.octokit.rest.repos.listForAuthenticatedUser({
         sort: 'updated',
         direction: 'desc',
-        per_page: 50,
+        per_page: 100,
         type: includePrivate ? 'all' : 'public',
       });
 
-      console.log(`✅ Found ${response.data.length} repositories`);
+      console.log(`✅ Found ${personalResponse.data.length} personal repositories`);
+
+      // Fetch organization repositories (this requires read:org scope)
+      let orgRepositories: any[] = [];
+      if (scopeInfo.canAccessOrganizations) {
+        try {
+          // Get user's organizations
+          const orgsResponse = await this.octokit.rest.orgs.listForAuthenticatedUser({
+            per_page: 100,
+          });
+
+          console.log(`📋 Found ${orgsResponse.data.length} organizations`);
+
+          // Fetch repositories for each organization
+          const orgRepoPromises = orgsResponse.data.map(async (org) => {
+            try {
+              const orgReposResponse = await this.octokit.rest.repos.listForOrg({
+                org: org.login,
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 100,
+                type: includePrivate ? 'all' : 'public',
+              });
+              console.log(`✅ Found ${orgReposResponse.data.length} repositories in ${org.login}`);
+              return orgReposResponse.data;
+            } catch (error) {
+              console.warn(`⚠️ Could not fetch repositories for organization ${org.login}:`, error);
+              return [];
+            }
+          });
+
+          const orgRepoResults = await Promise.all(orgRepoPromises);
+          orgRepositories = orgRepoResults.flat();
+
+          console.log(`✅ Found ${orgRepositories.length} total organization repositories`);
+        } catch (error) {
+          console.warn('⚠️ Could not fetch organization repositories:', error);
+        }
+      } else {
+        console.warn('⚠️ Cannot access organization repositories - missing read:org scope');
+      }
+
+      // Combine all repositories and remove duplicates
+      const allRepositories = [...personalResponse.data, ...orgRepositories];
+      const uniqueRepositories = allRepositories.filter((repo, index, self) =>
+        index === self.findIndex(r => r.id === repo.id)
+      );
+
+      console.log(`✅ Found ${uniqueRepositories.length} total unique repositories`);
+
+      // Get current user info to determine ownership
+      const userResponse = await this.octokit.rest.users.getAuthenticated();
+      const currentUser = userResponse.data.login;
 
       // Process repositories in parallel
       const processedRepos = await Promise.all(
-        response.data.map(repo => this.processRepository(repo as GitHubRepository))
+        uniqueRepositories.map(repo => this.processRepository(repo as GitHubRepository, currentUser))
       );
 
       // Filter and sort repositories
@@ -93,17 +186,20 @@ export class GitHubService {
   }
 
   // Process individual repository
-  private async processRepository(repo: GitHubRepository): Promise<ProcessedRepository> {
+  private async processRepository(repo: GitHubRepository, currentUser: string): Promise<ProcessedRepository> {
     const [owner, name] = repo.full_name.split('/');
-    
+
     // Get detailed language information
     const languages = await this.getRepositoryLanguages(owner, name);
-    
+
     // Determine if repository is suitable for translation
     const isTranslatable = this.isRepositoryTranslatable(repo, languages);
-    
+
     // Estimate number of translatable strings based on repository characteristics
     const estimatedStrings = this.estimateTranslatableStrings(repo, languages);
+
+    // Determine if this is an organization repository
+    const isOrganization = owner !== currentUser;
 
     return {
       id: repo.id.toString(),
@@ -122,6 +218,8 @@ export class GitHubService {
       languages,
       isTranslatable,
       estimatedStrings,
+      owner,
+      isOrganization,
     };
   }
 

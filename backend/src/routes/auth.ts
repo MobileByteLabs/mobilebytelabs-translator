@@ -42,8 +42,8 @@ passport.deserializeUser((user: any, done: (err: any, user?: any) => void) => {
 });
 
 // Routes
-router.get('/github', passport.authenticate('github', { 
-  scope: ['user:email', 'repo'] 
+router.get('/github', passport.authenticate('github', {
+  scope: ['user:email', 'repo', 'read:org']
 }));
 
 router.get('/github/callback',

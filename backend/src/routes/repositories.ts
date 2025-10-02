@@ -70,7 +70,7 @@ router.get('/debug', authenticateToken, async (req: AuthenticatedRequest, res) =
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     console.log('📂 Fetching repositories for user:', req.user?.user?.username);
-    
+
     // Get GitHub token from authenticated user
     const githubToken = req.user?.user?.githubToken;
     if (!githubToken) {
@@ -80,13 +80,16 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
 
     // Create GitHub service instance
     const githubService = new GitHubService(githubToken);
-    
+
+    // Check token scopes
+    const scopeInfo = await githubService.getTokenScopes();
+
     // Fetch repositories
     const repositories = await githubService.getUserRepositories(true);
-    
+
     console.log(`✅ Retrieved ${repositories.length} translatable repositories`);
-    
-    res.json({ 
+
+    res.json({
       repositories: repositories.map(repo => ({
         id: repo.id,
         name: repo.name,
@@ -104,11 +107,17 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
         htmlUrl: repo.htmlUrl,
         lastUpdated: repo.lastUpdated,
         defaultBranch: repo.defaultBranch,
-      }))
+        owner: repo.owner,
+        isOrganization: repo.isOrganization,
+      })),
+      scopes: scopeInfo,
+      message: !scopeInfo.canAccessOrganizations ?
+        'Organization repositories not available. Re-authorize to grant organization access.' :
+        undefined
     });
   } catch (error) {
     console.error('❌ Error fetching repositories:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch repositories',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
