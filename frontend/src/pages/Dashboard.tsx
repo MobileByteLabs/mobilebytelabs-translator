@@ -33,6 +33,8 @@ import {
   Business,
   Person,
   Info,
+  Search,
+  Clear,
 } from '@mui/icons-material';
 
 // Components
@@ -84,6 +86,24 @@ const Dashboard: React.FC = () => {
   const [repoUrl, setRepoUrl] = React.useState('');
   const [scopeInfo, setScopeInfo] = React.useState<RepositoryResponse['scopes'] | null>(null);
   const [scopeMessage, setScopeMessage] = React.useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  // Filter repositories based on search query
+  const filteredRepositories = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return repositories;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return repositories.filter(repo =>
+      repo.name.toLowerCase().includes(query) ||
+      repo.fullName.toLowerCase().includes(query) ||
+      repo.description.toLowerCase().includes(query) ||
+      repo.owner.toLowerCase().includes(query) ||
+      repo.language.toLowerCase().includes(query) ||
+      (repo.languages || []).some(lang => lang.toLowerCase().includes(query))
+    );
+  }, [repositories, searchQuery]);
 
   // Handle OAuth callback and get user
   React.useEffect(() => {
@@ -318,6 +338,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+  };
+
   return (
     <>
       <Container maxWidth="lg">
@@ -421,20 +446,84 @@ const Dashboard: React.FC = () => {
 
           {/* Repository List */}
           <Box>
-            <Typography
-              variant="h5"
-              sx={{
-                color: 'white',
-                fontWeight: 600,
-                mb: 3,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-              }}
-            >
-              <GitHub sx={{ fontSize: 24 }} />
-              Your Repositories
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  color: 'white',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <GitHub sx={{ fontSize: 24 }} />
+                Your Repositories
+                {searchQuery && (
+                  <Chip
+                    label={`${filteredRepositories.length} of ${repositories.length}`}
+                    size="small"
+                    sx={{
+                      ml: 1,
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      color: '#6366f1',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                    }}
+                  />
+                )}
+              </Typography>
+
+              {/* Search Bar */}
+              <Box sx={{ position: 'relative', minWidth: 300 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search repositories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Search sx={{
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: 20,
+                        mr: 1
+                      }} />
+                    ),
+                    endAdornment: searchQuery && (
+                      <IconButton
+                        size="small"
+                        onClick={handleClearSearch}
+                        sx={{
+                          color: 'rgba(255,255,255,0.5)',
+                          '&:hover': { color: 'rgba(255,255,255,0.8)' }
+                        }}
+                      >
+                        <Clear sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      color: 'white',
+                      '& fieldset': {
+                        borderColor: 'rgba(255,255,255,0.1)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255,255,255,0.2)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#6366f1',
+                      },
+                    },
+                    '& .MuiInputBase-input::placeholder': {
+                      color: 'rgba(255,255,255,0.5)',
+                      opacity: 1,
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
 
             {/* Scope Information */}
             {scopeMessage && (
@@ -482,7 +571,7 @@ const Dashboard: React.FC = () => {
                   </Grid>
                 ))
               ) : repositories.length === 0 ? (
-                // Empty state
+                // Empty state - no repositories at all
                 <Grid item xs={12}>
                   <Box sx={{ textAlign: 'center', py: 8 }}>
                     <GitHub sx={{ fontSize: 64, color: 'rgba(255,255,255,0.3)', mb: 2 }} />
@@ -501,9 +590,29 @@ const Dashboard: React.FC = () => {
                     </GradientButton>
                   </Box>
                 </Grid>
+              ) : filteredRepositories.length === 0 ? (
+                // Empty search results
+                <Grid item xs={12}>
+                  <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Search sx={{ fontSize: 64, color: 'rgba(255,255,255,0.3)', mb: 2 }} />
+                    <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+                      No Repositories Match Your Search
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', mb: 3 }}>
+                      Try searching with different keywords or clear your search to see all repositories.
+                    </Typography>
+                    <GradientButton
+                      variant="outline"
+                      startIcon={<Clear />}
+                      onClick={handleClearSearch}
+                    >
+                      Clear Search
+                    </GradientButton>
+                  </Box>
+                </Grid>
               ) : (
                 // Repository cards
-                repositories.map((repo) => (
+                filteredRepositories.map((repo) => (
                   <Grid item xs={12} md={6} lg={4} key={repo.id}>
                     <Card
                       sx={{
