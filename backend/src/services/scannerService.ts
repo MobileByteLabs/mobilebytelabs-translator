@@ -14,6 +14,31 @@ interface StringFile {
   strings: StringResource[];
 }
 
+interface FileTreeItem {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  status: 'pending' | 'scanning' | 'completed' | 'skipped' | 'error';
+  children?: FileTreeItem[];
+  isStringFile?: boolean;
+  language?: string;
+  stringCount?: number;
+  error?: string;
+}
+
+interface ScanProgressUpdate {
+  type: 'progress' | 'complete' | 'error';
+  message: string;
+  currentFile?: string;
+  progress: {
+    scannedItems: number;
+    totalItems: number;
+    percentage: number;
+  };
+  fileTree?: FileTreeItem[];
+  scanResult?: Partial<ScanResult>;
+}
+
 interface ScanResult {
   defaultStrings: StringResource[];
   existingTranslations: { [language: string]: StringResource[] };
@@ -21,6 +46,7 @@ interface ScanResult {
   availableLanguages: string[];
   totalStrings: number;
   branches: string[];
+  fileTree: FileTreeItem[];
 }
 
 export class ScannerService {
@@ -100,13 +126,17 @@ export class ScannerService {
 
       console.log(` Scan complete. Found ${defaultStrings.length} default strings, ${availableLanguages.length} language(s)`);
 
+      // Build file tree for visualization
+      const fileTree = this.buildFileTree(tree, stringFiles);
+
       return {
         defaultStrings,
         existingTranslations,
         missingTranslations,
         availableLanguages,
         totalStrings: defaultStrings.length,
-        branches
+        branches,
+        fileTree
       };
 
     } catch (error) {
@@ -328,4 +358,376 @@ export class ScannerService {
     const dir = basePath.substring(0, basePath.lastIndexOf('/'));
     return `${dir}/values-${language}/strings.xml`;
   }
+
+  // Scan repository with progress updates
+  async scanRepositoryWithProgress(
+    owner: string,
+    repo: string,
+    branch: string = 'main',
+    progressCallback?: (update: ScanProgressUpdate) => void
+  ): Promise<ScanResult> {
+    try {
+      console.log(`🔍 Starting enhanced scan for ${owner}/${repo} on branch ${branch}...`);
+
+      const sendProgress = (update: ScanProgressUpdate) => {
+        if (progressCallback) {
+          progressCallback(update);
+        }
+      };
+
+      // Step 1: Get repository tree
+      sendProgress({
+        type: 'progress',
+        message: 'Fetching repository structure...',
+        progress: { scannedItems: 0, totalItems: 0, percentage: 0 }
+      });
+
+      const tree = await this.githubService.getRepositoryTree(owner, repo, branch);
+
+      // Check repository size and warn if too large
+      if (tree.length > 50000) {
+        throw new Error(`Repository is too large (${tree.length} files). Please use a smaller repository or contact support for assistance.`);
+      } else if (tree.length > 20000) {
+        sendProgress({
+          type: 'progress',
+          message: `Very large repository detected (${tree.length} items). This may take several minutes and use significant memory...`,
+          progress: { scannedItems: 0, totalItems: tree.length, percentage: 0 }
+        });
+      } else if (tree.length > 10000) {
+        sendProgress({
+          type: 'progress',
+          message: `Large repository detected (${tree.length} items). This may take some time...`,
+          progress: { scannedItems: 0, totalItems: tree.length, percentage: 0 }
+        });
+      }
+
+      // Build initial file tree structure (but don't send it for very large repos)
+      const isLargeRepo = tree.length > 5000;
+      const isMassiveRepo = tree.length > 15000;
+      const fileTree = isLargeRepo ? [] : this.buildFileTree(tree, []);
+      const totalItems = tree.length; // Use actual file count instead of tree count
+      let scannedItems = 0;
+
+      sendProgress({
+        type: 'progress',
+        message: `Found ${totalItems} items in repository${isLargeRepo ? ' - using optimized scanning for large repository' : ''}`,
+        progress: { scannedItems: 0, totalItems, percentage: 0 },
+        fileTree: isLargeRepo ? [] : fileTree
+      });
+
+      // Step 2: Process string files with progress updates
+      const stringFiles: StringFile[] = [];
+      const processedPaths = new Set<string>();
+
+      for (const item of tree) {
+        if (item.type === 'blob' && this.isStringFile(item.path)) {
+          try {
+            // Update file status (only for small repos with file tree)
+            if (!isLargeRepo) {
+              this.updateFileTreeStatus(fileTree, item.path, 'scanning');
+              this.updateDirectoryStatus(fileTree, item.path, 'scanning');
+            }
+
+            sendProgress({
+              type: 'progress',
+              message: `Scanning ${item.path}...`,
+              currentFile: item.path,
+              progress: { scannedItems, totalItems, percentage: Math.round((scannedItems / totalItems) * 100) },
+              fileTree: isLargeRepo ? [] : fileTree
+            });
+
+            // Remove delay for large repos to speed up processing
+            if (!isLargeRepo) {
+              await new Promise(resolve => setTimeout(resolve, 50));
+            } else if (isMassiveRepo) {
+              // For massive repos, add tiny delay to prevent overwhelming the system
+              await new Promise(resolve => setTimeout(resolve, 1));
+            }
+
+            const content = await this.githubService.getFileContent(owner, repo, item.path, branch);
+            const language = this.extractLanguageFromPath(item.path);
+            const strings = await this.parseStringFile(content, item.path);
+
+            stringFiles.push({
+              path: item.path,
+              language,
+              strings
+            });
+
+            // Update file status (only for small repos with file tree)
+            if (!isLargeRepo) {
+              this.updateFileTreeStatus(fileTree, item.path, 'completed', strings.length);
+              this.updateDirectoryStatus(fileTree, item.path, 'completed');
+            }
+            processedPaths.add(item.path);
+
+            scannedItems++;
+            console.log(`✅ Processed string file: ${item.path} (${language || 'default'}) with ${strings.length} strings`);
+
+          } catch (error) {
+            console.warn(`⚠️ Could not parse string file ${item.path}:`, error);
+            if (!isLargeRepo) {
+              this.updateFileTreeStatus(fileTree, item.path, 'error', 0, error instanceof Error ? error.message : 'Parse error');
+              this.updateDirectoryStatus(fileTree, item.path, 'error');
+            }
+            scannedItems++;
+          }
+        } else {
+          // Mark non-string files as skipped (only for small repos)
+          if (item.type === 'blob' && !isLargeRepo) {
+            this.updateFileTreeStatus(fileTree, item.path, 'skipped');
+          }
+          scannedItems++;
+        }
+
+        // Send periodic progress updates (less frequent for large repos)
+        const updateFrequency = isMassiveRepo ? 500 : isLargeRepo ? 200 : 50;
+        if (scannedItems % updateFrequency === 0 || scannedItems === totalItems) {
+          const progressMessage = isMassiveRepo
+            ? `Processing large repository: ${scannedItems}/${totalItems} items...`
+            : `Processed ${scannedItems}/${totalItems} items...`;
+
+          sendProgress({
+            type: 'progress',
+            message: progressMessage,
+            progress: { scannedItems, totalItems, percentage: Math.round((scannedItems / totalItems) * 100) },
+            fileTree: isLargeRepo ? [] : fileTree
+          });
+        }
+      }
+
+      // Mark all remaining directories as completed
+      this.markAllDirectoriesCompleted(fileTree);
+
+      if (stringFiles.length === 0) {
+        throw new Error('No translatable string files found in repository');
+      }
+
+      // Step 3: Process results
+      sendProgress({
+        type: 'progress',
+        message: isMassiveRepo ? 'Finalizing scan results for large repository...' : 'Processing scan results...',
+        progress: { scannedItems: totalItems, totalItems, percentage: 100 },
+        fileTree: fileTree
+      });
+
+      // For massive repos, add a small delay to ensure UI updates properly
+      if (isMassiveRepo) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const defaultStrings = this.getDefaultStrings(stringFiles);
+      const existingTranslations = this.getExistingTranslations(stringFiles);
+      const missingTranslations = this.calculateMissingTranslations(defaultStrings, existingTranslations);
+      const availableLanguages = Object.keys(existingTranslations);
+      const branches = await this.getRepositoryBranches(owner, repo);
+
+      const scanResult: ScanResult = {
+        defaultStrings,
+        existingTranslations,
+        missingTranslations,
+        availableLanguages,
+        totalStrings: defaultStrings.length,
+        branches,
+        fileTree
+      };
+
+      // Send completion update with minimal data to avoid JSON truncation
+      // For large datasets, we'll let the frontend retrieve the full result separately
+      const shouldSendFullResult = defaultStrings.length < 100 && totalItems < 1000;
+
+      sendProgress({
+        type: 'complete',
+        message: `Scan complete! Found ${defaultStrings.length} default strings in ${stringFiles.length} files`,
+        progress: { scannedItems: totalItems, totalItems, percentage: 100 },
+        scanResult: shouldSendFullResult ? {
+          totalStrings: defaultStrings.length,
+          availableLanguages: availableLanguages,
+          defaultStrings: defaultStrings,
+          existingTranslations: existingTranslations,
+          missingTranslations: missingTranslations,
+          branches: branches,
+          fileTree: isLargeRepo ? [] : fileTree
+        } : {
+          // For large results, send only summary data
+          totalStrings: defaultStrings.length,
+          availableLanguages: availableLanguages,
+          branches: branches,
+          fileTree: []
+        }
+      });
+
+      console.log(`✅ Enhanced scan complete. Found ${defaultStrings.length} default strings, ${availableLanguages.length} language(s)`);
+      return scanResult;
+
+    } catch (error) {
+      console.error(`❌ Error in enhanced scan:`, error);
+      if (progressCallback) {
+        progressCallback({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Scan failed',
+          progress: { scannedItems: 0, totalItems: 0, percentage: 0 }
+        });
+      }
+      throw error;
+    }
+  }
+
+  // Build file tree structure from GitHub tree
+  private buildFileTree(githubTree: any[], stringFiles: StringFile[]): FileTreeItem[] {
+    const tree: { [path: string]: FileTreeItem } = {};
+    const stringFilePaths = new Set(stringFiles.map(f => f.path));
+
+    // Create directories and files
+    for (const item of githubTree) {
+      const pathParts = item.path.split('/');
+
+      // Create directory structure
+      for (let i = 0; i < pathParts.length; i++) {
+        const currentPath = pathParts.slice(0, i + 1).join('/');
+        const isFile = i === pathParts.length - 1 && item.type === 'blob';
+        const isStringFile = isFile && this.isStringFile(currentPath);
+
+        if (!tree[currentPath]) {
+          tree[currentPath] = {
+            name: pathParts[i],
+            path: currentPath,
+            type: isFile ? 'file' : 'directory',
+            status: 'pending',
+            children: isFile ? undefined : [],
+            isStringFile: isFile ? isStringFile : undefined,
+            language: isFile && isStringFile ? this.extractLanguageFromPath(currentPath) : undefined,
+            stringCount: isFile && isStringFile ? stringFiles.find(f => f.path === currentPath)?.strings.length : undefined
+          };
+        }
+
+        // Add to parent directory
+        if (i > 0) {
+          const parentPath = pathParts.slice(0, i).join('/');
+          const parent = tree[parentPath];
+          if (parent && parent.children) {
+            if (!parent.children.find(child => child.path === currentPath)) {
+              parent.children.push(tree[currentPath]);
+            }
+          }
+        }
+      }
+    }
+
+    // Return root level items, sorted with directories first
+    return Object.values(tree)
+      .filter(item => !item.path.includes('/'))
+      .sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'directory' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }
+
+  // Count total items in file tree
+  private countFileTreeItems(fileTree: FileTreeItem[]): number {
+    let count = 0;
+
+    const countRecursive = (items: FileTreeItem[]) => {
+      for (const item of items) {
+        count++;
+        if (item.children) {
+          countRecursive(item.children);
+        }
+      }
+    };
+
+    countRecursive(fileTree);
+    return count;
+  }
+
+  // Update file status in tree
+  private updateFileTreeStatus(
+    fileTree: FileTreeItem[],
+    filePath: string,
+    status: FileTreeItem['status'],
+    stringCount?: number,
+    error?: string
+  ): void {
+    const updateRecursive = (items: FileTreeItem[]) => {
+      for (const item of items) {
+        if (item.path === filePath) {
+          item.status = status;
+          if (stringCount !== undefined) item.stringCount = stringCount;
+          if (error) item.error = error;
+          return true;
+        }
+        if (item.children && updateRecursive(item.children)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    updateRecursive(fileTree);
+  }
+
+  // Update directory status based on file activity
+  private updateDirectoryStatus(
+    fileTree: FileTreeItem[],
+    filePath: string,
+    status: FileTreeItem['status']
+  ): void {
+    const pathParts = filePath.split('/');
+
+    // Update all parent directories (only if they're not already marked with a higher priority status)
+    for (let i = 1; i < pathParts.length; i++) {
+      const dirPath = pathParts.slice(0, i).join('/');
+
+      // Find the directory in the tree
+      const dir = this.findItemInTree(fileTree, dirPath);
+      if (dir && dir.type === 'directory') {
+        // Only update if current status is lower priority than new status
+        const statusPriority = { 'pending': 0, 'scanning': 1, 'completed': 2, 'error': 3, 'skipped': 1 };
+        const currentPriority = statusPriority[dir.status] || 0;
+        const newPriority = statusPriority[status] || 0;
+
+        if (newPriority >= currentPriority) {
+          dir.status = status;
+        }
+      }
+    }
+  }
+
+  // Helper to find an item in the tree
+  private findItemInTree(fileTree: FileTreeItem[], targetPath: string): FileTreeItem | null {
+    const findRecursive = (items: FileTreeItem[]): FileTreeItem | null => {
+      for (const item of items) {
+        if (item.path === targetPath) {
+          return item;
+        }
+        if (item.children) {
+          const found = findRecursive(item.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    return findRecursive(fileTree);
+  }
+
+  // Mark all directories as completed when scan finishes
+  private markAllDirectoriesCompleted(fileTree: FileTreeItem[]): void {
+    const markRecursive = (items: FileTreeItem[]) => {
+      for (const item of items) {
+        if (item.type === 'directory' && item.status === 'pending') {
+          item.status = 'completed';
+        }
+        if (item.children) {
+          markRecursive(item.children);
+        }
+      }
+    };
+
+    markRecursive(fileTree);
+  }
 }
+
+export { ScanProgressUpdate, FileTreeItem };

@@ -1,7 +1,7 @@
 // backend/src/routes/scan.ts
 import express from 'express';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
-import { ScannerService } from '../services/scannerService';
+import { ScannerService, ScanProgressUpdate } from '../services/scannerService';
 
 const router = express.Router();
 
@@ -122,6 +122,73 @@ router.get('/languages', authenticateToken, async (req: AuthenticatedRequest, re
   } catch (error) {
     console.error('❌ Error fetching languages:', error);
     res.status(500).json({ error: 'Failed to fetch supported languages' });
+  }
+});
+
+// Enhanced scan repository with real-time progress
+router.post('/repository/enhanced', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { owner, repo, branch = 'main' } = req.body;
+
+    if (!owner || !repo) {
+      res.status(400).json({ error: 'Owner and repo are required' });
+      return;
+    }
+
+    if (!req.user?.user?.githubToken) {
+      res.status(401).json({ error: 'GitHub token not found' });
+      return;
+    }
+
+    console.log(`🔍 Starting enhanced scan for ${owner}/${repo} on branch ${branch}`);
+
+    // Set up Server-Sent Events
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control',
+    });
+
+    const scannerService = new ScannerService(req.user.user.githubToken);
+
+    // Progress callback to send updates to client
+    const progressCallback = (update: ScanProgressUpdate) => {
+      const data = JSON.stringify(update);
+      res.write(`data: ${data}\n\n`);
+    };
+
+    try {
+      const scanResult = await scannerService.scanRepositoryWithProgress(
+        owner,
+        repo,
+        branch,
+        progressCallback
+      );
+
+      // Don't send the full scanResult through SSE to avoid large JSON payloads
+      // The scanResult will be returned and handled by the scannerService completion event
+      console.log('✅ Enhanced scan completed, result available');
+
+    } catch (error) {
+      console.error('❌ Error in enhanced scan:', error);
+
+      // Send error event
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Scan failed',
+        progress: { scannedItems: 0, totalItems: 0, percentage: 0 }
+      })}\n\n`);
+    }
+
+    res.end();
+
+  } catch (error) {
+    console.error('❌ Error setting up enhanced scan:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to start enhanced scan'
+    });
   }
 });
 

@@ -29,6 +29,7 @@ import LanguageSelector from '../components/scan/LanguageSelector';
 import ScanResults from '../components/scan/ScanResults';
 import TranslationInterface from '../components/scan/TranslationInterface';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import EnhancedScanProgress from '../components/scan/EnhancedScanProgress';
 import { AuthService } from '../utils/auth';
 
 interface SupportedLanguage {
@@ -67,6 +68,8 @@ const RepositoryScan: React.FC = () => {
   // Scan results
   const [scanData, setScanData] = useState<ScanResultData | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [useEnhancedScan, setUseEnhancedScan] = useState(true);
+  const [repositorySize, setRepositorySize] = useState<number | null>(null);
 
   const steps = ['Select Branch', 'Review Scan Results', 'Choose Languages', 'Translate'];
 
@@ -179,11 +182,75 @@ const RepositoryScan: React.FC = () => {
     );
   };
 
+  const handleEnhancedScanComplete = (result: any) => {
+    console.log('🔍 Enhanced scan completed:', result);
+    setScanData(result);
+    setScanning(false);
+  };
+
+  // Update repository size based on progress updates
+  const handleEnhancedScanProgress = (update: any) => {
+    if (update.progress && update.progress.totalItems && !repositorySize) {
+      setRepositorySize(update.progress.totalItems);
+    }
+  };
+
+  const handleEnhancedScanError = (errorMessage: string) => {
+    console.error('❌ Enhanced scan error:', errorMessage);
+    setError(errorMessage);
+    setScanning(false);
+  };
+
+  const getRepositorySizeWarning = () => {
+    if (!repositorySize) return null;
+
+    if (repositorySize > 20000) {
+      return (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            Very Large Repository Detected ({repositorySize.toLocaleString()} files)
+          </Typography>
+          <Typography variant="body2">
+            This repository is very large and may take several minutes to scan. The process may use significant memory and could be slower than usual.
+          </Typography>
+        </Alert>
+      );
+    } else if (repositorySize > 10000) {
+      return (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            Large Repository Detected ({repositorySize.toLocaleString()} files)
+          </Typography>
+          <Typography variant="body2">
+            This repository is large and may take some time to scan. Please be patient during the scanning process.
+          </Typography>
+        </Alert>
+      );
+    } else if (repositorySize > 5000) {
+      return (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            Medium-sized repository ({repositorySize.toLocaleString()} files) - scanning may take a moment.
+          </Typography>
+        </Alert>
+      );
+    }
+
+    return null;
+  };
+
   const handleNext = () => {
     if (activeStep === 0 && selectedBranch) {
       // Step 0 → 1: Start scanning when moving from branch selection
-      handleScanRepository();
-      setActiveStep(1);
+      // Reset repository size for new scan
+      setRepositorySize(null);
+      if (useEnhancedScan) {
+        setScanning(true);
+        setActiveStep(1);
+      } else {
+        handleScanRepository();
+        setActiveStep(1);
+      }
     } else if (activeStep === 1 && scanData) {
       // Step 1 → 2: Move from scan results to language selection
       setActiveStep(2);
@@ -229,7 +296,17 @@ const RepositoryScan: React.FC = () => {
         // Step 2: Review Scan Results
         return (
           <Box>
-            {scanning ? (
+            {getRepositorySizeWarning()}
+            {scanning && useEnhancedScan ? (
+              <EnhancedScanProgress
+                owner={owner!}
+                repo={repo!}
+                branch={selectedBranch}
+                onComplete={handleEnhancedScanComplete}
+                onError={handleEnhancedScanError}
+                onProgress={handleEnhancedScanProgress}
+              />
+            ) : scanning ? (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <LoadingSpinner />
                 <Typography variant="h6" sx={{ color: 'white', mt: 2 }}>
