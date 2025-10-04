@@ -2,11 +2,12 @@
 import express from 'express';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { ScannerService, ScanProgressUpdate } from '../services/scannerService';
+import { scanLimiter, dataRetrievalLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
 // Get repository branches
-router.get('/branches/:owner/:repo', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.get('/branches/:owner/:repo', dataRetrievalLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { owner, repo } = req.params;
 
@@ -41,7 +42,7 @@ router.get('/branches/:owner/:repo', authenticateToken, async (req: Authenticate
 });
 
 // Scan repository for strings
-router.post('/repository', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.post('/repository', scanLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { owner, repo, branch = 'main' } = req.body;
 
@@ -126,7 +127,7 @@ router.get('/languages', authenticateToken, async (req: AuthenticatedRequest, re
 });
 
 // Enhanced scan repository with real-time progress
-router.post('/repository/enhanced', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.post('/repository/enhanced', scanLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { owner, repo, branch = 'main' } = req.body;
 

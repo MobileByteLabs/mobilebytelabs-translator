@@ -4,6 +4,7 @@ import passport from 'passport';
 import { Strategy as GitHubStrategy, Profile } from 'passport-github2';
 import session from 'express-session';
 import jwt from 'jsonwebtoken';
+import { authLimiter, oauthLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -74,7 +75,7 @@ passport.deserializeUser((user: any, done: (err: any, user?: any) => void) => {
 
 // Routes
 // Start GitHub OAuth flow
-router.get('/github', (req: Request, res: Response, next) => {
+router.get('/github', oauthLimiter, (req: Request, res: Response, next) => {
   const isReauth = req.query.reauth === 'true';
   console.log(`🚀 Starting GitHub OAuth flow... ${isReauth ? '(Re-authorization)' : '(Initial login)'}`);
 
@@ -86,6 +87,7 @@ router.get('/github', (req: Request, res: Response, next) => {
 
 // GitHub OAuth callback
 router.get('/github/callback',
+  oauthLimiter,
   passport.authenticate('github', { failureRedirect: `${process.env.CORS_ORIGIN}/login?error=oauth_failed` }),
   (req: Request, res: Response): void => {
     try {
@@ -131,7 +133,7 @@ router.get('/status', (req: Request, res: Response): void => {
 });
 
 // Logout
-router.post('/logout', (req: Request, res: Response): void => {
+router.post('/logout', authLimiter, (req: Request, res: Response): void => {
   req.logout((err: any) => {
     if (err) {
       console.error('❌ Logout error:', err);
@@ -144,7 +146,7 @@ router.post('/logout', (req: Request, res: Response): void => {
 });
 
 // Save GitHub token manually
-router.post('/github-token', async (req: Request, res: Response): Promise<void> => {
+router.post('/github-token', authLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
