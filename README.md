@@ -1,5 +1,7 @@
 # MobileByteLabs Translator
 
+### Join our community [![Slack](https://img.shields.io/badge/Slack-Join%20Us-blue?logo=slack)](https://mobilebytelabs.slack.com/)
+
 **MobileByteLabs Translator** is an intelligent translation service platform that provides advanced translation capabilities through a modern web interface. The application leverages AI-powered translation services and GitHub integration to help developers and teams manage multilingual content efficiently.
 
 ### Key Features
