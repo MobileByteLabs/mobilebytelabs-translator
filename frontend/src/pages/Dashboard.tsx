@@ -111,14 +111,14 @@ const Dashboard: React.FC = () => {
       console.log('🔍 Dashboard initializeAuth starting...');
       console.log('🔍 Current URL:', window.location.href);
       console.log('🔍 localStorage before callback:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
-      
+
       // Small delay to ensure localStorage is ready
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       // Check for OAuth callback first
       const callbackUser = AuthService.handleOAuthCallback();
       console.log('🔍 After handleOAuthCallback:', { user: callbackUser });
-      
+
       if (callbackUser) {
         console.log('✅ OAuth callback successful:', callbackUser);
         console.log('🔍 localStorage after callback:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
@@ -130,15 +130,15 @@ const Dashboard: React.FC = () => {
       }
 
       console.log('🔍 No callback user, checking existing auth...');
-      
+
       // Check if already authenticated
       const isAuth = AuthService.isAuthenticated();
       console.log('🔍 isAuthenticated result:', isAuth);
-      
+
       if (isAuth) {
         const existingUser = AuthService.getUser();
         console.log('🔍 existingUser from getUser():', existingUser);
-        
+
         if (existingUser) {
           console.log('✅ Found existing authenticated user:', existingUser);
           setUser(existingUser);
@@ -153,7 +153,7 @@ const Dashboard: React.FC = () => {
 
       // Only redirect to login if we have no user and no token
       console.log('❌ No authentication found, redirecting to login in 2 seconds...');
-      
+
       // Add a delay to see what's happening
       setTimeout(() => {
         console.log('🔍 Final localStorage check before redirect:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
@@ -168,24 +168,24 @@ const Dashboard: React.FC = () => {
   // Fetch repositories from backend
   const fetchRepositories = async () => {
     if (isLoadingRepos) return; // Prevent multiple concurrent requests
-    
+
     setIsLoadingRepos(true);
     setError(null);
-    
+
     try {
       console.log('📂 Fetching repositories from backend...');
       console.log('🔑 Using token:', AuthService.getToken()?.substring(0, 20) + '...');
-      
+
       const response = await AuthService.apiRequest('/repositories');
       console.log('📡 API response status:', response.status);
       console.log('📡 API response headers:', response.headers);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error Response:', errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
       }
-      
+
       const data: RepositoryResponse = await response.json();
       console.log('✅ Repositories data received:', data);
       console.log('✅ Number of repositories:', data.repositories?.length || 0);
@@ -296,7 +296,7 @@ const Dashboard: React.FC = () => {
 
       // Refresh repositories list
       await fetchRepositories();
-      
+
       // Close dialog and reset form
       setShowAddDialog(false);
       setRepoUrl('');
@@ -426,7 +426,7 @@ const Dashboard: React.FC = () => {
               >
                 Add Repository
               </GradientButton>
-              
+
               <GradientButton
                 variant="outline"
                 startIcon={<Refresh />}
@@ -692,7 +692,7 @@ const Dashboard: React.FC = () => {
                               {repo.fullName}
                             </Typography>
                           </Box>
-                          
+
                           <IconButton
                             size="small"
                             onClick={(e) => {
@@ -718,7 +718,7 @@ const Dashboard: React.FC = () => {
                             overflow: 'hidden',
                           }}
                         >
-                          {repo.description}
+                          {repo.description || 'No description available'}
                         </Typography>
 
                         {/* Language and Stats */}
@@ -737,52 +737,8 @@ const Dashboard: React.FC = () => {
                           </Typography>
                         </Box>
 
-                        {/* Translation Progress */}
-                        {repo.status !== 'scanning' ? (
-                          <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                                Translation Progress
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: getStatusColor(repo.status) }}>
-                                {repo.translationProgress}%
-                              </Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={repo.translationProgress}
-                              sx={{
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: 'rgba(255,255,255,0.1)',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: getStatusColor(repo.status),
-                                  borderRadius: 3,
-                                },
-                              }}
-                            />
-                          </Box>
-                        ) : (
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="caption" sx={{ color: '#f59e0b', mb: 1, display: 'block' }}>
-                              Scanning repository...
-                            </Typography>
-                            <LinearProgress
-                              sx={{
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: 'rgba(255,255,255,0.1)',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: '#f59e0b',
-                                  borderRadius: 3,
-                                },
-                              }}
-                            />
-                          </Box>
-                        )}
-
                         {/* Languages */}
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {(repo.languages || []).slice(0, 3).map((lang) => (
                             <Chip
                               key={lang}
@@ -811,14 +767,6 @@ const Dashboard: React.FC = () => {
                             />
                           )}
                         </Box>
-
-                        {/* Last Scan */}
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'rgba(255,255,255,0.5)' }}
-                        >
-                          Last scan: {repo.lastScan}
-                        </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -862,8 +810,8 @@ const Dashboard: React.FC = () => {
       </Menu>
 
       {/* Add Repository Dialog */}
-      <Dialog 
-        open={showAddDialog} 
+      <Dialog
+        open={showAddDialog}
         onClose={handleCloseAddDialog}
         maxWidth="sm"
         fullWidth
@@ -882,12 +830,12 @@ const Dashboard: React.FC = () => {
             Add Repository
           </Box>
         </DialogTitle>
-        
+
         <DialogContent>
           <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 3 }}>
             Enter the GitHub repository URL you want to add for translation.
           </Typography>
-          
+
           <TextField
             fullWidth
             label="GitHub Repository URL"
@@ -914,12 +862,12 @@ const Dashboard: React.FC = () => {
               },
             }}
           />
-          
+
           <Alert severity="info" sx={{ mt: 2 }}>
             The repository will be scanned for translatable strings and added to your dashboard.
           </Alert>
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3 }}>
           <GradientButton
             variant="outline"
