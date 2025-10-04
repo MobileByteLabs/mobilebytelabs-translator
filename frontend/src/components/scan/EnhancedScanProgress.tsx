@@ -121,18 +121,11 @@ const EnhancedScanProgress: React.FC<EnhancedScanProgressProps> = ({
       }
 
       // Start the scan with POST request that returns SSE
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/scan/repository/enhanced`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ owner, repo, branch }),
-          signal: controller.signal,
-        }
-      );
+      const response = await AuthService.apiRequest('/scan/repository/enhanced', {
+        method: 'POST',
+        body: JSON.stringify({ owner, repo, branch }),
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
         // eslint-disable-next-line no-throw-literal
@@ -238,17 +231,10 @@ const EnhancedScanProgress: React.FC<EnhancedScanProgressProps> = ({
         throw 'No authentication token found';
       }
 
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/scan/repository`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ owner, repo, branch }),
-        }
-      );
+      const response = await AuthService.apiRequest('/scan/repository', {
+        method: 'POST',
+        body: JSON.stringify({ owner, repo, branch }),
+      });
 
       if (!response.ok) {
         // eslint-disable-next-line no-throw-literal
