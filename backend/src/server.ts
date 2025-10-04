@@ -12,6 +12,11 @@ import githubAuthRoutes from './routes/github-auth';
 import repositoriesRoutes from './routes/repositories';
 import scanRoutes from './routes/scan';
 import translateRoutes from './routes/translate';
+import {
+  generalApiLimiter,
+  healthCheckLimiter,
+  rateLimitLogger
+} from './middleware/rateLimiter';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,8 +29,11 @@ app.use(cors({
 
 app.use(express.json());
 
-// Health check endpoint
-app.get('/health', (req, res) => {
+// Apply rate limiting middleware
+app.use(rateLimitLogger); // Log rate limit info for monitoring
+
+// Health check endpoint with specific rate limiter
+app.get('/health', healthCheckLimiter, (_, res) => {
   res.json({
     status: 'healthy',
     message: 'Server is running with environment variables!',
@@ -36,7 +44,7 @@ app.get('/health', (req, res) => {
 });
 
 // Test endpoint
-app.get('/api/test', (req, res) => {
+app.get('/api/test', (_, res) => {
   res.json({
     message: 'API test endpoint working!',
     env: {
@@ -48,9 +56,9 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Add routes
-console.log('🔄 Registering routes...');
-app.use('/api', simpleRoutes);
+// Add routes with rate limiting
+console.log('🔄 Registering routes with rate limiting...');
+app.use('/api', generalApiLimiter, simpleRoutes); // Apply general rate limit to all API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', githubAuthRoutes);
 app.use('/api/repositories', repositoriesRoutes);

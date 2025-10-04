@@ -2,6 +2,7 @@
 import express from 'express';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { GitHubService } from '../services/githubService';
+import { dataRetrievalLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -67,7 +68,7 @@ router.get('/debug', authenticateToken, async (req: AuthenticatedRequest, res) =
 });
 
 // Get user repositories
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.get('/', dataRetrievalLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     console.log('📂 Fetching repositories for user:', req.user?.user?.username);
 

@@ -2,6 +2,7 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { translationLimiter } from '../middleware/rateLimiter';
 
 const router = express.Router();
 
@@ -85,7 +86,7 @@ interface TranslationRequest {
 }
 
 // Batch translate strings using Gemini
-router.post('/batch', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.post('/batch', translationLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const {
       strings,
@@ -342,7 +343,7 @@ router.post('/download', authenticateToken, async (req: AuthenticatedRequest, re
 });
 
 // Create Pull Request with translations
-router.post('/create-pr', authenticateToken, async (req: AuthenticatedRequest, res) => {
+router.post('/create-pr', translationLimiter, authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { translationResults, repository, branch, owner, repo } = req.body;
 
