@@ -55,7 +55,7 @@ const Dashboard: React.FC = () => {
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  //Repo is directly fetchd from connected GitHub account.
+  // Repo is directly fetched from connected GitHub account.
   // Handle OAuth callback and get user
   React.useEffect(() => {
     const initializeAuth = async () => {
