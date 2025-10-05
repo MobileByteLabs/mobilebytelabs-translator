@@ -77,27 +77,32 @@ function App() {
 
   const checkAuthState = () => {
     setIsAuthChecking(true);
-    
-    // First, check if this is an OAuth callback
-    const callbackUser = AuthService.handleOAuthCallback();
-    
-    if (callbackUser) {
-      console.log('✅ OAuth callback successful, user:', callbackUser);
-      setUser(callbackUser);
-      setIsAuthChecking(false);
-      return;
-    }
 
-    // If not a callback, check if user is already authenticated
-    if (AuthService.isAuthenticated()) {
-      const storedUser = AuthService.getUser();
-      console.log('✅ User already authenticated:', storedUser);
-      setUser(storedUser);
-    } else {
-      console.log('ℹ️ No authenticated user found');
+    try {
+      // First, check if this is an OAuth callback
+      const callbackUser = AuthService.handleOAuthCallback();
+
+      if (callbackUser) {
+        console.log('✅ OAuth callback successful, user:', callbackUser);
+        setUser(callbackUser);
+        setIsAuthChecking(false);
+        return;
+      }
+
+      // If not a callback, check if user is already authenticated
+      if (AuthService.isAuthenticated()) {
+        const storedUser = AuthService.getUser();
+        console.log('✅ User already authenticated:', storedUser);
+        setUser(storedUser);
+      } else {
+        console.log('ℹ️ No authenticated user found');
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('❌ Error checking authentication state:', error);
       setUser(null);
     }
-    
+
     setIsAuthChecking(false);
   };
 

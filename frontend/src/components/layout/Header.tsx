@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+// frontend/src/components/layout/Header.tsx
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AuthService, User } from '../../utils/auth';
+import { User } from '../../utils/auth';
 import {
   Box,
   Container,
@@ -26,40 +27,10 @@ interface HeaderProps {
   onLogout?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user: propUser, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  
-  // Internal state to handle authentication state
-  const [internalUser, setInternalUser] = useState<User | null>(propUser || null);
-
-  // Sync with prop changes and verify authentication
-  useEffect(() => {
-    if (propUser) {
-      setInternalUser(propUser);
-    } else {
-      // Double-check authentication state if no user prop provided
-      if (AuthService.isAuthenticated()) {
-        const user = AuthService.getUser();
-        setInternalUser(user);
-      } else {
-        setInternalUser(null);
-      }
-    }
-  }, [propUser]);
-
-  // Refresh user state when location changes (helpful for OAuth redirects)
-  useEffect(() => {
-    const checkAuth = () => {
-      if (AuthService.isAuthenticated() && !internalUser) {
-        const user = AuthService.getUser();
-        setInternalUser(user);
-      }
-    };
-    
-    checkAuth();
-  }, [location.pathname]);
 
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -73,8 +44,6 @@ const Header: React.FC<HeaderProps> = ({ user: propUser, onLogout }) => {
     handleUserMenuClose();
     onLogout?.();
   };
-
-  const user = internalUser; // Use internal user state
 
   const navItems = [
     { label: 'Home', path: '/', icon: <Home sx={{ fontSize: 20 }} /> },
