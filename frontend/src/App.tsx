@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 
@@ -67,22 +67,64 @@ const theme = createTheme({
 });
 
 function App() {
-  const [user, setUser] = React.useState(AuthService.getUser());
+  const [user, setUser] = useState(AuthService.getUser());
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  React.useEffect(() => {
-    const handleAuthChange = () => {
-      setUser(AuthService.getUser());
-    };
-
-    // Listen for auth changes (if you implement an event system)
-    // For now, we'll just check periodically or on mount
-    handleAuthChange();
+  useEffect(() => {
+    console.log('🔄 App mounting - checking authentication state...');
+    checkAuthState();
   }, []);
 
+  const checkAuthState = () => {
+    setIsAuthChecking(true);
+    
+    // First, check if this is an OAuth callback
+    const callbackUser = AuthService.handleOAuthCallback();
+    
+    if (callbackUser) {
+      console.log('✅ OAuth callback successful, user:', callbackUser);
+      setUser(callbackUser);
+      setIsAuthChecking(false);
+      return;
+    }
+
+    // If not a callback, check if user is already authenticated
+    if (AuthService.isAuthenticated()) {
+      const storedUser = AuthService.getUser();
+      console.log('✅ User already authenticated:', storedUser);
+      setUser(storedUser);
+    } else {
+      console.log('ℹ️ No authenticated user found');
+      setUser(null);
+    }
+    
+    setIsAuthChecking(false);
+  };
+
   const handleLogout = async () => {
+    console.log('🚪 Logging out...');
     await AuthService.logout();
     setUser(null);
   };
+
+  // Show loading state while checking authentication
+  if (isAuthChecking) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          background: '#0f0f23',
+          color: 'white'
+        }}>
+          <div>Checking authentication...</div>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>

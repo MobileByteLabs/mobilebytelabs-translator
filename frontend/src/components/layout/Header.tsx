@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AuthService, User } from '../../utils/auth';
 import {
   Box,
   Container,
@@ -16,24 +17,49 @@ import {
   GitHub,
   Dashboard,
   Settings,
-  AccountCircle,
   Logout,
   Home,
 } from '@mui/icons-material';
 
 interface HeaderProps {
-  user?: {
-    name: string;
-    avatar: string;
-    username: string;
-  } | null;
+  user?: User | null;
   onLogout?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+const Header: React.FC<HeaderProps> = ({ user: propUser, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  
+  // Internal state to handle authentication state
+  const [internalUser, setInternalUser] = useState<User | null>(propUser || null);
+
+  // Sync with prop changes and verify authentication
+  useEffect(() => {
+    if (propUser) {
+      setInternalUser(propUser);
+    } else {
+      // Double-check authentication state if no user prop provided
+      if (AuthService.isAuthenticated()) {
+        const user = AuthService.getUser();
+        setInternalUser(user);
+      } else {
+        setInternalUser(null);
+      }
+    }
+  }, [propUser]);
+
+  // Refresh user state when location changes (helpful for OAuth redirects)
+  useEffect(() => {
+    const checkAuth = () => {
+      if (AuthService.isAuthenticated() && !internalUser) {
+        const user = AuthService.getUser();
+        setInternalUser(user);
+      }
+    };
+    
+    checkAuth();
+  }, [location.pathname]);
 
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -48,12 +74,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
     onLogout?.();
   };
 
+  const user = internalUser; // Use internal user state
+
   const navItems = [
     { label: 'Home', path: '/', icon: <Home sx={{ fontSize: 20 }} /> },
     { label: 'Dashboard', path: '/dashboard', icon: <Dashboard sx={{ fontSize: 20 }} /> },
     { label: 'Settings', path: '/settings', icon: <Settings sx={{ fontSize: 20 }} /> },
   ].filter(item => {
-    // Hide Home button when on dashboard
     if (item.path === '/' && location.pathname === '/dashboard') {
       return false;
     }
@@ -108,7 +135,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             </Typography>
           </Box>
 
-          {/* Navigation - always show when not on login page */}
+          {/* Navigation */}
           {location.pathname !== '/login' && (
             <Box sx={{
               display: 'flex',
@@ -151,7 +178,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'flex-end' }}>
             {user ? (
               <>
-                {/* User Status Chip */}
                 <Chip
                   label="Connected"
                   size="small"
@@ -163,7 +189,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
                   }}
                 />
 
-                {/* User Avatar and Menu */}
                 <IconButton onClick={handleUserMenuOpen} sx={{ p: 0 }}>
                   <Avatar
                     src={user.avatar}
