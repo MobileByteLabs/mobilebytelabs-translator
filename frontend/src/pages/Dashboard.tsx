@@ -12,16 +12,11 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Alert,
 } from '@mui/material';
 import {
   GitHub,
-  Add,
   MoreVert,
   Translate,
   Schedule,
@@ -82,8 +77,6 @@ const Dashboard: React.FC = () => {
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [showAddDialog, setShowAddDialog] = React.useState(false);
-  const [repoUrl, setRepoUrl] = React.useState('');
   const [scopeInfo, setScopeInfo] = React.useState<RepositoryResponse['scopes'] | null>(null);
   const [scopeMessage, setScopeMessage] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -258,60 +251,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleAddRepository = () => {
-    setShowAddDialog(true);
-  };
-
-  const handleAddRepositoryByUrl = async () => {
-    if (!repoUrl.trim()) return;
-
-    try {
-      setIsLoadingRepos(true);
-      console.log('➕ Adding repository:', repoUrl);
-
-      // Extract owner/repo from URL
-      const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-      if (!match) {
-        throw new Error('Invalid GitHub URL. Please use format: https://github.com/owner/repo');
-      }
-
-      const [, owner, repo] = match;
-      const repositoryFullName = `${owner}/${repo}`;
-
-      const response = await AuthService.apiRequest('/repositories', {
-        method: 'POST',
-        body: JSON.stringify({
-          repositoryFullName,
-          repositoryUrl: repoUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to add repository: ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Repository added:', data);
-
-      // Refresh repositories list
-      await fetchRepositories();
-
-      // Close dialog and reset form
-      setShowAddDialog(false);
-      setRepoUrl('');
-    } catch (error) {
-      console.error('❌ Error adding repository:', error);
-      setError(error instanceof Error ? error.message : 'Failed to add repository');
-    } finally {
-      setIsLoadingRepos(false);
-    }
-  };
-
-  const handleCloseAddDialog = () => {
-    setShowAddDialog(false);
-    setRepoUrl('');
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -418,15 +357,6 @@ const Dashboard: React.FC = () => {
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-              <GradientButton
-                variant="primary"
-                startIcon={<Add />}
-                onClick={handleAddRepository}
-                disabled={isLoadingRepos}
-              >
-                Add Repository
-              </GradientButton>
-
               <GradientButton
                 variant="outline"
                 startIcon={<Refresh />}
@@ -808,82 +738,6 @@ const Dashboard: React.FC = () => {
           Rescan Repository
         </MenuItem>
       </Menu>
-
-      {/* Add Repository Dialog */}
-      <Dialog
-        open={showAddDialog}
-        onClose={handleCloseAddDialog}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            background: 'rgba(26, 26, 46, 0.95)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: 3,
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: 'white' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Add sx={{ color: '#6366f1' }} />
-            Add Repository
-          </Box>
-        </DialogTitle>
-
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 3 }}>
-            Enter the GitHub repository URL you want to add for translation.
-          </Typography>
-
-          <TextField
-            fullWidth
-            label="GitHub Repository URL"
-            placeholder="https://github.com/owner/repository"
-            value={repoUrl}
-            onChange={(e) => setRepoUrl(e.target.value)}
-            variant="outlined"
-            sx={{
-              mb: 2,
-              '& .MuiOutlinedInput-root': {
-                color: 'white',
-                '& fieldset': {
-                  borderColor: 'rgba(255,255,255,0.3)',
-                },
-                '&:hover fieldset': {
-                  borderColor: 'rgba(255,255,255,0.5)',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#6366f1',
-                },
-              },
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255,255,255,0.7)',
-              },
-            }}
-          />
-
-          <Alert severity="info" sx={{ mt: 2 }}>
-            The repository will be scanned for translatable strings and added to your dashboard.
-          </Alert>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 3 }}>
-          <GradientButton
-            variant="outline"
-            onClick={handleCloseAddDialog}
-          >
-            Cancel
-          </GradientButton>
-          <GradientButton
-            variant="primary"
-            onClick={handleAddRepositoryByUrl}
-            disabled={!repoUrl.trim() || isLoadingRepos}
-          >
-            {isLoadingRepos ? 'Adding...' : 'Add Repository'}
-          </GradientButton>
-        </DialogActions>
-      </Dialog>
     </>
   );
 };
