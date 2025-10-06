@@ -8,7 +8,7 @@
 
 - **AI-Powered Translation**: Integrated with Google Gemini AI for high-quality translations
 -  **GitHub Integration**: Seamless OAuth authentication, repository management and automated PR generation.
-- **Repository Scanning**: Automated analysis of codebases for translation opportunities
+- **Repository Scanning**: Automated analysis of codebases for translation opportunities. Repositories are fetched automatically from your connected GitHub account.
 
 ### Technology Stack
 
