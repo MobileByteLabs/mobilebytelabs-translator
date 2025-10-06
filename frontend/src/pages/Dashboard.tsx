@@ -9,10 +9,14 @@ import {
   Grid,
   Chip,
   LinearProgress,
-  IconButton, Menu, MenuItem, Alert,
+  IconButton,
+  Menu,
+  MenuItem,
+  TextField,
+  Alert,
 } from '@mui/material';
 import {
-  GitHub, 
+  GitHub,
   MoreVert,
   Translate,
   Schedule,
@@ -21,10 +25,14 @@ import {
   Refresh,
   Settings,
   Visibility,
+  Business,
+  Person,
+  Info,
+  Search,
+  Clear,
 } from '@mui/icons-material';
 
 // Components
-import Layout from '../components/layout/Layout';
 import GradientButton from '../components/ui/GradientButton';
 import { AuthService, User } from '../utils/auth';
 
@@ -45,6 +53,20 @@ interface Repository {
   htmlUrl: string;
   lastUpdated: string;
   defaultBranch: string;
+  owner: string;
+  isOrganization: boolean;
+}
+
+interface RepositoryResponse {
+  repositories: Repository[];
+  scopes?: {
+    hasRepoScope: boolean;
+    hasOrgScope: boolean;
+    hasUserEmailScope: boolean;
+    scopes: string[];
+    canAccessOrganizations: boolean;
+  };
+  message?: string;
 }
 
 const Dashboard: React.FC = () => {
@@ -55,7 +77,27 @@ const Dashboard: React.FC = () => {
   const [repositories, setRepositories] = React.useState<Repository[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  // Repo is directly fetched from connected GitHub account.
+  const [scopeInfo, setScopeInfo] = React.useState<RepositoryResponse['scopes'] | null>(null);
+  const [scopeMessage, setScopeMessage] = React.useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  // Filter repositories based on search query
+  const filteredRepositories = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return repositories;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return repositories.filter(repo =>
+      repo.name.toLowerCase().includes(query) ||
+      repo.fullName.toLowerCase().includes(query) ||
+      repo.description.toLowerCase().includes(query) ||
+      repo.owner.toLowerCase().includes(query) ||
+      repo.language.toLowerCase().includes(query) ||
+      (repo.languages || []).some(lang => lang.toLowerCase().includes(query))
+    );
+  }, [repositories, searchQuery]);
+
   // Handle OAuth callback and get user
   React.useEffect(() => {
     const initializeAuth = async () => {
@@ -136,12 +178,15 @@ const Dashboard: React.FC = () => {
         console.error('❌ API Error Response:', errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
       }
-      
-      const data = await response.json();
+
+      const data: RepositoryResponse = await response.json();
       console.log('✅ Repositories data received:', data);
       console.log('✅ Number of repositories:', data.repositories?.length || 0);
-      
+      console.log('✅ Scope info:', data.scopes);
+
       setRepositories(data.repositories || []);
+      setScopeInfo(data.scopes || null);
+      setScopeMessage(data.message || null);
     } catch (error) {
       console.error('❌ Error fetching repositories:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch repositories');
@@ -158,25 +203,23 @@ const Dashboard: React.FC = () => {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <Layout backgroundVariant="dashboard">
-        <Container maxWidth="lg">
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            minHeight: '50vh',
-            flexDirection: 'column',
-            gap: 2
-          }}>
-            <Typography variant="h5" sx={{ color: 'white' }}>
-              Loading...
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-              Authenticating with GitHub
-            </Typography>
-          </Box>
-        </Container>
-      </Layout>
+      <Container maxWidth="lg">
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '50vh',
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <Typography variant="h5" sx={{ color: 'white' }}>
+            Loading...
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+            Authenticating with GitHub
+          </Typography>
+        </Box>
+      </Container>
     );
   }
 
@@ -208,6 +251,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active':
@@ -233,15 +277,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+  };
+
   return (
-    <Layout 
-      backgroundVariant="dashboard" 
-      user={user} 
-      onLogout={async () => {
-        await AuthService.logout();
-        navigate('/');
-      }}
-    >
+    <>
       <Container maxWidth="lg">
         <Box sx={{ py: 6 }}>
           {/* Header */}
@@ -334,20 +376,112 @@ const Dashboard: React.FC = () => {
 
           {/* Repository List */}
           <Box>
-            <Typography
-              variant="h5"
-              sx={{
-                color: 'white',
-                fontWeight: 600,
-                mb: 3,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-              }}
-            >
-              <GitHub sx={{ fontSize: 24 }} />
-              Your Repositories
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  color: 'white',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <GitHub sx={{ fontSize: 24 }} />
+                Your Repositories
+                {searchQuery && (
+                  <Chip
+                    label={`${filteredRepositories.length} of ${repositories.length}`}
+                    size="small"
+                    sx={{
+                      ml: 1,
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      color: '#6366f1',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                    }}
+                  />
+                )}
+              </Typography>
+
+              {/* Search Bar */}
+              <Box sx={{ position: 'relative', minWidth: 300 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search repositories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Search sx={{
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: 20,
+                        mr: 1
+                      }} />
+                    ),
+                    endAdornment: searchQuery && (
+                      <IconButton
+                        size="small"
+                        onClick={handleClearSearch}
+                        sx={{
+                          color: 'rgba(255,255,255,0.5)',
+                          '&:hover': { color: 'rgba(255,255,255,0.8)' }
+                        }}
+                      >
+                        <Clear sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      color: 'white',
+                      '& fieldset': {
+                        borderColor: 'rgba(255,255,255,0.1)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255,255,255,0.2)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#6366f1',
+                      },
+                    },
+                    '& .MuiInputBase-input::placeholder': {
+                      color: 'rgba(255,255,255,0.5)',
+                      opacity: 1,
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Scope Information */}
+            {scopeMessage && (
+              <Alert
+                severity="warning"
+                icon={<Info />}
+                sx={{
+                  mb: 3,
+                  backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  '& .MuiAlert-icon': {
+                    color: '#fbbf24'
+                  }
+                }}
+                action={
+                  <GradientButton
+                    variant="outline"
+                    size="small"
+                    onClick={() => AuthService.reauthorizeWithScopes()}
+                  >
+                    Re-authorize
+                  </GradientButton>
+                }
+              >
+                {scopeMessage}
+              </Alert>
+            )}
 
             <Grid container spacing={3}>
               {isLoadingRepos ? (
@@ -367,7 +501,7 @@ const Dashboard: React.FC = () => {
                   </Grid>
                 ))
               ) : repositories.length === 0 ? (
-                // Empty state
+                // Empty state - no repositories at all
                 <Grid item xs={12}>
                   <Box sx={{ textAlign: 'center', py: 8 }}>
                     <GitHub sx={{ fontSize: 64, color: 'rgba(255,255,255,0.3)', mb: 2 }} />
@@ -386,9 +520,29 @@ const Dashboard: React.FC = () => {
                     </GradientButton>
                   </Box>
                 </Grid>
+              ) : filteredRepositories.length === 0 ? (
+                // Empty search results
+                <Grid item xs={12}>
+                  <Box sx={{ textAlign: 'center', py: 8 }}>
+                    <Search sx={{ fontSize: 64, color: 'rgba(255,255,255,0.3)', mb: 2 }} />
+                    <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+                      No Repositories Match Your Search
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', mb: 3 }}>
+                      Try searching with different keywords or clear your search to see all repositories.
+                    </Typography>
+                    <GradientButton
+                      variant="outline"
+                      startIcon={<Clear />}
+                      onClick={handleClearSearch}
+                    >
+                      Clear Search
+                    </GradientButton>
+                  </Box>
+                </Grid>
               ) : (
                 // Repository cards
-                repositories.map((repo) => (
+                filteredRepositories.map((repo) => (
                   <Grid item xs={12} md={6} lg={4} key={repo.id}>
                     <Card
                       sx={{
@@ -417,17 +571,47 @@ const Dashboard: React.FC = () => {
                               >
                                 {repo.name}
                               </Typography>
+                              {repo.isOrganization && (
+                                <Chip
+                                  icon={<Business sx={{ fontSize: 12 }} />}
+                                  label="Organization"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
+                                    height: 18,
+                                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                    color: '#22c55e',
+                                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                                    '& .MuiChip-icon': { fontSize: 12 }
+                                  }}
+                                />
+                              )}
+                              {!repo.isOrganization && (
+                                <Chip
+                                  icon={<Person sx={{ fontSize: 12 }} />}
+                                  label="Personal"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
+                                    height: 18,
+                                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                    color: '#6366f1',
+                                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                                    '& .MuiChip-icon': { fontSize: 12 }
+                                  }}
+                                />
+                              )}
                               {repo.isPrivate && (
-                                <Chip 
-                                  label="Private" 
-                                  size="small" 
-                                  sx={{ 
-                                    fontSize: '0.6rem', 
+                                <Chip
+                                  label="Private"
+                                  size="small"
+                                  sx={{
+                                    fontSize: '0.6rem',
                                     height: 18,
                                     backgroundColor: 'rgba(251, 191, 36, 0.1)',
                                     color: '#fbbf24',
                                     border: '1px solid rgba(251, 191, 36, 0.3)'
-                                  }} 
+                                  }}
                                 />
                               )}
                             </Box>
@@ -554,7 +738,7 @@ const Dashboard: React.FC = () => {
           Rescan Repository
         </MenuItem>
       </Menu>
-    </Layout>
+    </>
   );
 };
 
