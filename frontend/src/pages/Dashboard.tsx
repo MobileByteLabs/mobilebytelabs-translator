@@ -62,14 +62,14 @@ const Dashboard: React.FC = () => {
       console.log('🔍 Dashboard initializeAuth starting...');
       console.log('🔍 Current URL:', window.location.href);
       console.log('🔍 localStorage before callback:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
-      
+
       // Small delay to ensure localStorage is ready
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       // Check for OAuth callback first
       const callbackUser = AuthService.handleOAuthCallback();
       console.log('🔍 After handleOAuthCallback:', { user: callbackUser });
-      
+
       if (callbackUser) {
         console.log('✅ OAuth callback successful:', callbackUser);
         console.log('🔍 localStorage after callback:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
@@ -81,15 +81,15 @@ const Dashboard: React.FC = () => {
       }
 
       console.log('🔍 No callback user, checking existing auth...');
-      
+
       // Check if already authenticated
       const isAuth = AuthService.isAuthenticated();
       console.log('🔍 isAuthenticated result:', isAuth);
-      
+
       if (isAuth) {
         const existingUser = AuthService.getUser();
         console.log('🔍 existingUser from getUser():', existingUser);
-        
+
         if (existingUser) {
           console.log('✅ Found existing authenticated user:', existingUser);
           setUser(existingUser);
@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
 
       // Only redirect to login if we have no user and no token
       console.log('❌ No authentication found, redirecting to login in 2 seconds...');
-      
+
       // Add a delay to see what's happening
       setTimeout(() => {
         console.log('🔍 Final localStorage check before redirect:', localStorage.getItem('mobilebytes_auth_token')?.substring(0, 20));
@@ -119,18 +119,18 @@ const Dashboard: React.FC = () => {
   // Fetch repositories from backend
   const fetchRepositories = async () => {
     if (isLoadingRepos) return; // Prevent multiple concurrent requests
-    
+
     setIsLoadingRepos(true);
     setError(null);
-    
+
     try {
       console.log('📂 Fetching repositories from backend...');
       console.log('🔑 Using token:', AuthService.getToken()?.substring(0, 20) + '...');
-      
+
       const response = await AuthService.apiRequest('/repositories');
       console.log('📡 API response status:', response.status);
       console.log('📡 API response headers:', response.headers);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error Response:', errorText);
@@ -138,6 +138,8 @@ const Dashboard: React.FC = () => {
       }
       
       const data = await response.json();
+
+      const data: RepositoryResponse = await response.json();
       console.log('✅ Repositories data received:', data);
       console.log('✅ Number of repositories:', data.repositories?.length || 0);
       
@@ -206,6 +208,61 @@ const Dashboard: React.FC = () => {
       const [owner, name] = repository.fullName.split('/');
       navigate(`/scan/${owner}/${name}`);
     }
+  };
+
+  const handleAddRepository = () => {
+    setShowAddDialog(true);
+  };
+
+  const handleAddRepositoryByUrl = async () => {
+    if (!repoUrl.trim()) return;
+
+    try {
+      setIsLoadingRepos(true);
+      console.log('➕ Adding repository:', repoUrl);
+
+      // Extract owner/repo from URL
+      const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (!match) {
+        throw new Error('Invalid GitHub URL. Please use format: https://github.com/owner/repo');
+      }
+
+      const [, owner, repo] = match;
+      const repositoryFullName = `${owner}/${repo}`;
+
+      const response = await AuthService.apiRequest('/repositories', {
+        method: 'POST',
+        body: JSON.stringify({
+          repositoryFullName,
+          repositoryUrl: repoUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to add repository: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Repository added:', data);
+
+      // Refresh repositories list
+      await fetchRepositories();
+
+      // Close dialog and reset form
+      setShowAddDialog(false);
+      setRepoUrl('');
+    } catch (error) {
+      console.error('❌ Error adding repository:', error);
+      setError(error instanceof Error ? error.message : 'Failed to add repository');
+    } finally {
+      setIsLoadingRepos(false);
+    }
+  };
+
+  const handleCloseAddDialog = () => {
+    setShowAddDialog(false);
+    setRepoUrl('');
   };
 
   const getStatusIcon = (status: string) => {
@@ -315,6 +372,15 @@ const Dashboard: React.FC = () => {
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <GradientButton
+                variant="primary"
+                startIcon={<Add />}
+                onClick={handleAddRepository}
+                disabled={isLoadingRepos}
+              >
+                Add Repository
+              </GradientButton>
+
               <GradientButton
                 variant="outline"
                 startIcon={<Refresh />}
@@ -438,7 +504,7 @@ const Dashboard: React.FC = () => {
                               {repo.fullName}
                             </Typography>
                           </Box>
-                          
+
                           <IconButton
                             size="small"
                             onClick={(e) => {
@@ -464,7 +530,7 @@ const Dashboard: React.FC = () => {
                             overflow: 'hidden',
                           }}
                         >
-                          {repo.description}
+                          {repo.description || 'No description available'}
                         </Typography>
 
                         {/* Language and Stats */}
@@ -483,52 +549,8 @@ const Dashboard: React.FC = () => {
                           </Typography>
                         </Box>
 
-                        {/* Translation Progress */}
-                        {repo.status !== 'scanning' ? (
-                          <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                                Translation Progress
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: getStatusColor(repo.status) }}>
-                                {repo.translationProgress}%
-                              </Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={repo.translationProgress}
-                              sx={{
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: 'rgba(255,255,255,0.1)',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: getStatusColor(repo.status),
-                                  borderRadius: 3,
-                                },
-                              }}
-                            />
-                          </Box>
-                        ) : (
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="caption" sx={{ color: '#f59e0b', mb: 1, display: 'block' }}>
-                              Scanning repository...
-                            </Typography>
-                            <LinearProgress
-                              sx={{
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: 'rgba(255,255,255,0.1)',
-                                '& .MuiLinearProgress-bar': {
-                                  backgroundColor: '#f59e0b',
-                                  borderRadius: 3,
-                                },
-                              }}
-                            />
-                          </Box>
-                        )}
-
                         {/* Languages */}
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {(repo.languages || []).slice(0, 3).map((lang) => (
                             <Chip
                               key={lang}
@@ -557,14 +579,6 @@ const Dashboard: React.FC = () => {
                             />
                           )}
                         </Box>
-
-                        {/* Last Scan */}
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'rgba(255,255,255,0.5)' }}
-                        >
-                          Last scan: {repo.lastScan}
-                        </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -607,6 +621,83 @@ const Dashboard: React.FC = () => {
         </MenuItem>
       </Menu>
     </Layout>
+
+      {/* Add Repository Dialog */}
+      <Dialog
+        open={showAddDialog}
+        onClose={handleCloseAddDialog}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: 'rgba(26, 26, 46, 0.95)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: 'white' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Add sx={{ color: '#6366f1' }} />
+            Add Repository
+          </Box>
+        </DialogTitle>
+
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 3 }}>
+            Enter the GitHub repository URL you want to add for translation.
+          </Typography>
+
+          <TextField
+            fullWidth
+            label="GitHub Repository URL"
+            placeholder="https://github.com/owner/repository"
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+            variant="outlined"
+            sx={{
+              mb: 2,
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                '& fieldset': {
+                  borderColor: 'rgba(255,255,255,0.3)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255,255,255,0.5)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#6366f1',
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: 'rgba(255,255,255,0.7)',
+              },
+            }}
+          />
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            The repository will be scanned for translatable strings and added to your dashboard.
+          </Alert>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3 }}>
+          <GradientButton
+            variant="outline"
+            onClick={handleCloseAddDialog}
+          >
+            Cancel
+          </GradientButton>
+          <GradientButton
+            variant="primary"
+            onClick={handleAddRepositoryByUrl}
+            disabled={!repoUrl.trim() || isLoadingRepos}
+          >
+            {isLoadingRepos ? 'Adding...' : 'Add Repository'}
+          </GradientButton>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 

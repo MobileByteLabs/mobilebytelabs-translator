@@ -1,5 +1,7 @@
+// frontend/src/components/layout/Header.tsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { User } from '../../utils/auth';
 import {
   Box,
   Container,
@@ -16,17 +18,12 @@ import {
   GitHub,
   Dashboard,
   Settings,
-  AccountCircle,
   Logout,
   Home,
 } from '@mui/icons-material';
 
 interface HeaderProps {
-  user?: {
-    name: string;
-    avatar: string;
-    username: string;
-  } | null;
+  user?: User | null;
   onLogout?: () => void;
 }
 
@@ -53,7 +50,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
     { label: 'Dashboard', path: '/dashboard', icon: <Dashboard sx={{ fontSize: 20 }} /> },
     { label: 'Settings', path: '/settings', icon: <Settings sx={{ fontSize: 20 }} /> },
   ].filter(item => {
-    // Hide Home button when on dashboard
     if (item.path === '/' && location.pathname === '/dashboard') {
       return false;
     }
@@ -108,7 +104,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             </Typography>
           </Box>
 
-          {/* Navigation - always show when not on login page */}
+          {/* Navigation */}
           {location.pathname !== '/login' && (
             <Box sx={{
               display: 'flex',
@@ -151,7 +147,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'flex-end' }}>
             {user ? (
               <>
-                {/* User Status Chip */}
                 <Chip
                   label="Connected"
                   size="small"
@@ -163,7 +158,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
                   }}
                 />
 
-                {/* User Avatar and Menu */}
                 <IconButton onClick={handleUserMenuOpen} sx={{ p: 0 }}>
                   <Avatar
                     src={user.avatar}
