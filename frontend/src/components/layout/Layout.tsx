@@ -1,17 +1,15 @@
+// frontend/src/components/layout/Layout.tsx
 import React from 'react';
 import { Box } from '@mui/material';
 import Header from './Header';
 import Footer from './Footer';
 import AnimatedBackground from '../ui/AnimatedBackground';
+import { User } from '../../utils/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
   backgroundVariant?: 'default' | 'dashboard' | 'minimal';
-  user?: {
-    name: string;
-    avatar: string;
-    username: string;
-  } | null;
+  user?: User | null;
   onLogout?: () => void;
   showFooter?: boolean;
 }
