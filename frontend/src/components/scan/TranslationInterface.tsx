@@ -401,7 +401,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
           } : p
         ));
 
-        await new Promise(resolve => setTimeout(resolve, 500));
+        
 
         if (cancelRequested || abortControllerRef.current?.signal.aborted) {
           break;
