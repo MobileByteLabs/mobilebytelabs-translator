@@ -88,20 +88,6 @@ interface TranslationResult {
 // Main Component
 // ============================================================================
 
-/**
- * TranslationInterface Component
- * 
- * Manages the translation workflow including:
- * - Configuration (API key, batch size, app context)
- * - Real-time progress tracking with ETA
- * - Cancel/Retry functionality
- * - Download and PR creation
- * 
- * @param {ScanResultData | null} scanData - Repository scan results
- * @param {string[]} selectedLanguages - Target languages for translation
- * @param {string} repository - Repository name (owner/repo)
- * @param {string} branch - Git branch name
- */
 const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   scanData,
   selectedLanguages,
@@ -120,7 +106,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [translationResults, setTranslationResults] = useState<TranslationResult[]>([]);
   const [showCompletion, setShowCompletion] = useState(false);
-  const [cancelRequested, setCancelRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Ref to store abort controller for cancellation
@@ -130,7 +115,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   // Effects
   // ============================================================================
 
-  // Auto-fill Gemini API key from storage on component mount
   useEffect(() => {
     const storedApiKey = getStoredGeminiApiKey();
     if (storedApiKey) {
@@ -138,7 +122,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     }
   }, []);
 
-  // Calculate overall progress
   const overallProgress = useMemo(() => {
     if (translationProgress.length === 0) return 0;
     const totalStrings = translationProgress.reduce((sum, p) => sum + p.total, 0);
@@ -146,7 +129,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     return totalStrings === 0 ? 0 : Math.round((processedStrings / totalStrings) * 100);
   }, [translationProgress]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -192,9 +174,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     return languageNames[code] || code.toUpperCase();
   };
 
-  /**
-   * Format time remaining in human-readable format
-   */
   const formatTimeRemaining = (seconds: number): string => {
     if (seconds < 60) {
       return `${Math.round(seconds)}s`;
@@ -209,9 +188,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     }
   };
 
-  /**
-   * Calculate estimated time remaining for a language
-   */
   const calculateETA = (progress: TranslationProgress): number | null => {
     if (!progress.startTime || progress.processed === 0) {
       return null;
@@ -225,52 +201,34 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <CheckCircle sx={{ color: '#22c55e' }} />;
-      case 'error':
-        return <ErrorIcon sx={{ color: '#ef4444' }} />;
-      case 'cancelled':
-        return <CancelIcon sx={{ color: '#f59e0b' }} />;
-      case 'processing':
-        return <Pending sx={{ color: '#6366f1' }} />;
-      case 'initializing':
-        return <Timer sx={{ color: '#8b5cf6' }} />;
-      default:
-        return <Pending sx={{ color: 'rgba(255,255,255,0.3)' }} />;
+      case 'completed': return <CheckCircle sx={{ color: '#22c55e' }} />;
+      case 'error': return <ErrorIcon sx={{ color: '#ef4444' }} />;
+      case 'cancelled': return <CancelIcon sx={{ color: '#f59e0b' }} />;
+      case 'processing': return <Pending sx={{ color: '#6366f1' }} />;
+      case 'initializing': return <Timer sx={{ color: '#8b5cf6' }} />;
+      default: return <Pending sx={{ color: 'rgba(255,255,255,0.3)' }} />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
-        return '#22c55e';
-      case 'error':
-        return '#ef4444';
-      case 'cancelled':
-        return '#f59e0b';
-      case 'processing':
-        return '#6366f1';
-      case 'initializing':
-        return '#8b5cf6';
-      default:
-        return 'rgba(255,255,255,0.3)';
+      case 'completed': return '#22c55e';
+      case 'error': return '#ef4444';
+      case 'cancelled': return '#f59e0b';
+      case 'processing': return '#6366f1';
+      case 'initializing': return '#8b5cf6';
+      default: return 'rgba(255,255,255,0.3)';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'initializing':
-        return 'Initializing...';
-      case 'processing':
-        return 'Translating';
-      case 'completed':
-        return 'Completed';
-      case 'error':
-        return 'Failed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Pending';
+      case 'initializing': return 'Initializing...';
+      case 'processing': return 'Translating';
+      case 'completed': return 'Completed';
+      case 'error': return 'Failed';
+      case 'cancelled': return 'Cancelled';
+      default: return 'Pending';
     }
   };
 
@@ -278,29 +236,26 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   // Event Handlers
   // ============================================================================
 
-  /**
-   * Handle cancellation of translation process
-   */
   const handleCancelTranslation = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      setCancelRequested(true);
-
       setTranslationProgress(prev => prev.map(p => 
         p.status === 'processing' || p.status === 'initializing' || p.status === 'pending'
           ? { ...p, status: 'cancelled' as const }
           : p
       ));
-
       setIsTranslating(false);
     }
   };
 
-  /**
-   * Handle retry for a failed language
-   */
   const handleRetryLanguage = async (language: string) => {
     const missingKeys = scanData?.missingTranslations[language] || [];
+
+    // Optionally prevent concurrent operations:
+    if (abortControllerRef.current) {
+      setError('A translation operation is already in progress. Please wait or cancel it first.');
+      return;
+    }
 
     setTranslationProgress(prev => prev.map(p =>
       p.language === language ? {
@@ -314,11 +269,9 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     ));
 
     try {
-      // Create new abort controller for the retry
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
-      await translateLanguage(language, missingKeys);
+      await translateLanguage(language, missingKeys, controller.signal);
 
       setTranslationProgress(prev => prev.map(p =>
         p.language === language ? { ...p, status: 'completed' as const, processed: p.total } : p
@@ -330,7 +283,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
       } else if (typeof error === 'string') {
         errorMessage = error;
       }
-
       setTranslationProgress(prev => prev.map(p =>
         p.language === language ? {
           ...p,
@@ -349,7 +301,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         setError('Please enter your Gemini API key');
         return;
       }
-
       if (!appContext.trim()) {
         setError('Please provide context about your application');
         return;
@@ -358,7 +309,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
       setError(null);
       setIsTranslating(true);
       setShowResults(true);
-      setCancelRequested(false);
       setShowCompletion(false);
       
       abortControllerRef.current = new AbortController();
@@ -380,16 +330,14 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         if (abortControllerRef.current?.signal.aborted) {
           break;
         }
-
         const language = selectedLanguages[i];
         const missingKeys = scanData?.missingTranslations[language] || [];
-
         if (missingKeys.length === 0) continue;
 
         setTranslationProgress(prev => prev.map(p =>
-          p.language === language ? { 
-            ...p, 
-            status: 'initializing' as const,
+          p.language === language ? {
+            ...p,
+            status: 'initializing',
             startTime: Date.now()
           } : p
         ));
@@ -399,23 +347,22 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         }
 
         setTranslationProgress(prev => prev.map(p =>
-          p.language === language ? { ...p, status: 'processing' as const } : p
+          p.language === language ? { ...p, status: 'processing' } : p
         ));
 
         try {
-          await translateLanguage(language, missingKeys);
+          await translateLanguage(language, missingKeys, abortControllerRef.current?.signal);
 
           setTranslationProgress(prev => prev.map(p =>
-            p.language === language ? { ...p, status: 'completed' as const, processed: p.total } : p
+            p.language === language ? { ...p, status: 'completed', processed: p.total } : p
           ));
         } catch (error: unknown) {
           if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'AbortError') {
             setTranslationProgress(prev => prev.map(p =>
-              p.language === language ? { ...p, status: 'cancelled' as const } : p
+              p.language === language ? { ...p, status: 'cancelled' } : p
             ));
             break;
           }
-
           let errorMessage = 'Translation failed';
           if (error && typeof error === 'object' && 'message' in error) {
             errorMessage = String((error as Error).message);
@@ -426,49 +373,45 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
           setTranslationProgress(prev => prev.map(p =>
             p.language === language ? {
               ...p,
-              status: 'error' as const,
-              error: errorMessage
+              status: 'error',
+              error: errorMessage,
             } : p
           ));
         }
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Translation process failed';
-      setError(errorMessage);
+      const errMsg = error instanceof Error ? error.message : 'Translation process failed';
+      setError(errMsg);
       console.error('Translation process failed:', error);
     } finally {
       setIsTranslating(false);
-      
-      if (!cancelRequested && !abortControllerRef.current?.signal.aborted) {
-        setTimeout(() => {
-          setShowCompletion(true);
-        }, 500);
+      if (!abortControllerRef.current?.signal.aborted) {
+        setTimeout(() => setShowCompletion(true), 500);
       }
-      
       abortControllerRef.current = null;
     }
   };
 
-  const translateLanguage = async (language: string, missingKeys: string[]) => {
+  const translateLanguage = async (
+    language: string,
+    missingKeys: string[],
+    signal?: AbortSignal
+  ) => {
     const defaultStrings = scanData?.defaultStrings || [];
-
     const batches = [];
     for (let i = 0; i < missingKeys.length; i += batchSize) {
       batches.push(missingKeys.slice(i, i + batchSize));
     }
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      if (abortControllerRef.current?.signal.aborted) {
+      if (signal?.aborted) {
         throw new DOMException('Translation cancelled', 'AbortError');
       }
 
       const batch = batches[batchIndex];
       const stringsToTranslate = batch.map(key => {
         const defaultString = defaultStrings.find(s => s.key === key);
-        return {
-          key,
-          value: defaultString?.value || '',
-        };
+        return { key, value: defaultString?.value || '' };
       }).filter(s => s.value);
 
       if (stringsToTranslate.length === 0) continue;
@@ -485,7 +428,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
             repository,
             branch,
           }),
-          signal: abortControllerRef.current?.signal,
+          signal,
         });
 
         if (!response.ok) {
@@ -534,7 +477,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         }));
 
         if (batchIndex < batches.length - 1) {
-          // Delay between batches to respect Gemini API rate limits
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
@@ -549,14 +491,9 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     try {
       const response = await AuthService.apiRequest('/translate/download', {
         method: 'POST',
-        body: JSON.stringify({
-          translationResults
-        }),
+        body: JSON.stringify({ translationResults }),
       });
-
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
+      if (!response.ok) throw new Error('Download failed');
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -576,26 +513,14 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   const handleCreatePullRequest = async () => {
     try {
       const [owner, repo] = repository.split('/');
-
       const response = await AuthService.apiRequest('/translate/create-pr', {
         method: 'POST',
-        body: JSON.stringify({
-          translationResults,
-          repository,
-          branch,
-          owner,
-          repo
-        }),
+        body: JSON.stringify({ translationResults, repository, branch, owner, repo }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create pull request');
-      }
+      if (!response.ok) throw new Error('Failed to create pull request');
 
       const result = await response.json();
-
       window.open(result.data.pullRequest.url, '_blank');
-
       alert(`Pull request created successfully!\nPR #${result.data.pullRequest.number}: ${result.data.pullRequest.title}`);
     } catch (error) {
       console.error('Pull request creation failed:', error);
@@ -608,19 +533,11 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   // ============================================================================
 
   if (!scanData) {
-    return (
-      <Alert severity="error">
-        No scan data available. Please scan the repository first.
-      </Alert>
-    );
+    return <Alert severity="error">No scan data available. Please scan the repository first.</Alert>;
   }
 
   if (selectedLanguages.length === 0) {
-    return (
-      <Alert severity="warning">
-        No languages selected for translation. Please go back and select languages.
-      </Alert>
-    );
+    return <Alert severity="warning">No languages selected for translation. Please go back and select languages.</Alert>;
   }
 
   // ============================================================================
@@ -629,28 +546,17 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
 
   return (
     <Box>
-      <Typography
-        variant="h5"
-        sx={{
-          color: 'white',
-          mb: 3,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-        }}
-      >
+      <Typography variant="h5" sx={{ color: 'white', mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Translate sx={{ fontSize: 24 }} />
         Translation Setup
       </Typography>
 
-      {/* Error Display */}
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
 
-      {/* Configuration Section */}
       {!showResults && (
         <Card sx={{ mb: 3 }}>
           <CardContent sx={{ p: 3 }}>
@@ -658,52 +564,40 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
               <Settings sx={{ fontSize: 20 }} />
               Configuration
             </Typography>
-
-            {/* Gemini API Key */}
             <TextField
               fullWidth
               label="Gemini API Key"
               type="password"
               value={geminiApiKey}
-              onChange={(e) => setGeminiApiKey(e.target.value)}
+              onChange={e => setGeminiApiKey(e.target.value)}
               placeholder="Enter your Google Gemini API key"
               sx={{ mb: 3 }}
-              InputProps={{
-                startAdornment: <Api sx={{ color: 'rgba(255,255,255,0.5)', mr: 1 }} />,
-              }}
+              InputProps={{ startAdornment: <Api sx={{ color: 'rgba(255,255,255,0.5)', mr: 1 }} /> }}
               helperText="Get your API key from Google AI Studio (https://makersuite.google.com/app/apikey)"
             />
-
-            {/* App Context */}
             <TextField
               fullWidth
               multiline
               rows={4}
               label="Application Context"
               value={appContext}
-              onChange={(e) => setAppContext(e.target.value)}
+              onChange={e => setAppContext(e.target.value)}
               placeholder="Describe your application (e.g., 'This is a productivity app for task management. Users can create tasks, set reminders, and organize projects.')"
               sx={{ mb: 3 }}
               helperText="Provide context about your app to help Gemini generate more accurate translations"
             />
-
-            {/* Batch Size */}
             <FormControl sx={{ mb: 3, minWidth: 200 }}>
               <InputLabel>Batch Size</InputLabel>
               <Select
                 value={batchSize}
-                onChange={(e) => setBatchSize(Number(e.target.value))}
+                onChange={e => setBatchSize(Number(e.target.value))}
                 label="Batch Size"
               >
-                <MenuItem value={20}>20 strings per batch</MenuItem>
-                <MenuItem value={50}>50 strings per batch</MenuItem>
-                <MenuItem value={100}>100 strings per batch</MenuItem>
-                <MenuItem value={150}>150 strings per batch</MenuItem>
-                <MenuItem value={200}>200 strings per batch</MenuItem>
+                {[20, 50, 100, 150, 200].map(num => (
+                  <MenuItem key={num} value={num}>{num} strings per batch</MenuItem>
+                ))}
               </Select>
             </FormControl>
-
-            {/* Summary */}
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
                 <strong>Translation Summary:</strong><br />
@@ -715,7 +609,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                 <em>Note: Only missing translations will be processed (strings not yet translated to the target language)</em>
               </Typography>
             </Alert>
-
             <GradientButton
               variant="primary"
               onClick={handleStartTranslation}
@@ -729,7 +622,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         </Card>
       )}
 
-      {/* Completion Section */}
       {(showCompletion || (!isTranslating && translationResults.length > 0)) && (
         <Card sx={{ mb: 3 }}>
           <CardContent sx={{ p: 3 }}>
@@ -737,21 +629,16 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
               <CheckCircle sx={{ fontSize: 24, color: '#22c55e' }} />
               🎉 Translation Complete!
             </Typography>
-
             <Alert severity="success" sx={{ mb: 3 }}>
               <Typography variant="body2">
                 Successfully translated {translationResults.reduce((sum, result) => sum + result.stringCount, 0)} strings
                 across {translationResults.length} language(s): {translationResults.map(r => getLanguageDisplayName(r.language)).join(', ')}
               </Typography>
             </Alert>
-
-            {/* Translation Summary */}
             <List sx={{ mb: 3 }}>
-              {translationResults.map((result) => (
+              {translationResults.map(result => (
                 <ListItem key={result.language}>
-                  <ListItemIcon>
-                    <Language sx={{ color: '#6366f1' }} />
-                  </ListItemIcon>
+                  <ListItemIcon><Language sx={{ color: '#6366f1' }} /></ListItemIcon>
                   <ListItemText
                     primary={getLanguageDisplayName(result.language)}
                     secondary={`${result.stringCount} strings translated`}
@@ -761,28 +648,14 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                 </ListItem>
               ))}
             </List>
-
-            {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-              <GradientButton
-                variant="outline"
-                onClick={handleDownloadFiles}
-                startIcon={<Box sx={{ fontSize: 20 }}>📥</Box>}
-                size="large"
-              >
+              <GradientButton variant="outline" onClick={handleDownloadFiles} startIcon={<Box sx={{ fontSize: 20 }}>📥</Box>} size="large">
                 Download Files
               </GradientButton>
-
-              <GradientButton
-                variant="primary"
-                onClick={handleCreatePullRequest}
-                startIcon={<Box sx={{ fontSize: 20 }}>🔄</Box>}
-                size="large"
-              >
+              <GradientButton variant="primary" onClick={handleCreatePullRequest} startIcon={<Box sx={{ fontSize: 20 }}>🔄</Box>} size="large">
                 Create Pull Request
               </GradientButton>
             </Box>
-
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', textAlign: 'center', display: 'block', mt: 2 }}>
               Download files for manual integration or create a pull request for automated integration
             </Typography>
@@ -790,7 +663,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         </Card>
       )}
 
-      {/* Progress Section */}
       {showResults && !showCompletion && (
         <Card>
           <CardContent sx={{ p: 3 }}>
@@ -799,29 +671,18 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                 <Language sx={{ fontSize: 20 }} />
                 Translation Progress
               </Typography>
-              
               {isTranslating && (
                 <Tooltip title="Cancel translation">
-                  <IconButton
-                    onClick={handleCancelTranslation}
-                    aria-label="Cancel translation"
-                    sx={{ color: '#ef4444' }}
-                  >
+                  <IconButton onClick={handleCancelTranslation} aria-label="Cancel translation" sx={{ color: '#ef4444' }}>
                     <CancelIcon />
                   </IconButton>
                 </Tooltip>
               )}
             </Box>
-
-            {/* Overall Progress Bar */}
             <Box sx={{ mb: 3 }} role="status" aria-live="polite">
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>
-                  Overall Progress
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 'bold' }}>
-                  {overallProgress}%
-                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)' }}>Overall Progress</Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 'bold' }}>{overallProgress}%</Typography>
               </Box>
               <LinearProgress
                 variant="determinate"
@@ -830,51 +691,35 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                   height: 8,
                   borderRadius: 4,
                   backgroundColor: 'rgba(255,255,255,0.1)',
-                  '& .MuiLinearProgress-bar': {
-                    backgroundColor: '#6366f1',
-                    borderRadius: 4,
-                  },
+                  '& .MuiLinearProgress-bar': { backgroundColor: '#6366f1', borderRadius: 4 },
                 }}
               />
             </Box>
-
             <List>
               {translationProgress.map((progress, index) => (
                 <React.Fragment key={progress.language}>
                   <ListItem>
-                    <ListItemIcon>
-                      {getStatusIcon(progress.status)}
-                    </ListItemIcon>
+                    <ListItemIcon>{getStatusIcon(progress.status)}</ListItemIcon>
                     <ListItemText
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-                            {getLanguageDisplayName(progress.language)}
-                          </Typography>
-                          <Chip
-                            label={getStatusLabel(progress.status)}
-                            size="small"
-                            sx={{
-                              backgroundColor: `${getStatusColor(progress.status)}20`,
-                              color: getStatusColor(progress.status),
-                              border: `1px solid ${getStatusColor(progress.status)}50`,
-                            }}
-                          />
+                          <Typography variant="subtitle1" sx={{ color: 'white' }}>{getLanguageDisplayName(progress.language)}</Typography>
+                          <Chip label={getStatusLabel(progress.status)} size="small" sx={{
+                            backgroundColor: `${getStatusColor(progress.status)}20`,
+                            color: getStatusColor(progress.status),
+                            border: `1px solid ${getStatusColor(progress.status)}50`,
+                          }} />
                           {progress.status === 'processing' && progress.currentBatch && progress.totalBatches && (
-                            <Chip
-                              label={`Batch ${progress.currentBatch}/${progress.totalBatches}`}
-                              size="small"
-                              sx={{
-                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                                color: '#6366f1',
-                                fontSize: '0.7rem',
-                              }}
-                            />
+                            <Chip label={`Batch ${progress.currentBatch}/${progress.totalBatches}`} size="small" sx={{
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              color: '#6366f1',
+                              fontSize: '0.7rem',
+                            }} />
                           )}
                         </Box>
                       }
                       secondary={
-                        <React.Fragment>
+                        <>
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span style={{ color: 'rgba(255,255,255,0.7)' }}>
                               {progress.processed} / {progress.total} strings processed
@@ -890,9 +735,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                           </Box>
                           {progress.error && (
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
-                              <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>
-                                Error: {progress.error}
-                              </span>
+                              <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>Error: {progress.error}</span>
                               <Tooltip title="Retry translation">
                                 <IconButton
                                   size="small"
@@ -918,7 +761,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                               },
                             }}
                           />
-                        </React.Fragment>
+                        </>
                       }
                     />
                   </ListItem>
@@ -926,21 +769,15 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                 </React.Fragment>
               ))}
             </List>
-
             {!isTranslating && (
               <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-                <GradientButton
-                  variant="outline"
-                  onClick={() => {
-                    setShowResults(false);
-                    setTranslationProgress([]);
-                    setTranslationResults([]);
-                    setCancelRequested(false);
-                  }}
-                >
+                <GradientButton variant="outline" onClick={() => {
+                  setShowResults(false);
+                  setTranslationProgress([]);
+                  setTranslationResults([]);
+                }}>
                   Configure Again
                 </GradientButton>
-                
                 {translationProgress.some(p => p.status === 'error' || p.status === 'cancelled') && (
                   <GradientButton
                     variant="primary"
@@ -948,7 +785,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                       const failedLanguages = translationProgress
                         .filter(p => p.status === 'error' || p.status === 'cancelled')
                         .map(p => p.language);
-                      
+                      // Sequential retry to respect API rate limits and concurrency safety
                       for (const lang of failedLanguages) {
                         await handleRetryLanguage(lang);
                       }
