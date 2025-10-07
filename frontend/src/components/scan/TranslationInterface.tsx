@@ -120,7 +120,6 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   const [showResults, setShowResults] = useState(false);
   const [translationResults, setTranslationResults] = useState<TranslationResult[]>([]);
   const [showCompletion, setShowCompletion] = useState(false);
-  const [overallProgress, setOverallProgress] = useState(0);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -139,21 +138,12 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     }
   }, []);
 
-  // Calculate overall progress whenever translationProgress changes
-  useEffect(() => {
-    if (translationProgress.length === 0) {
-      setOverallProgress(0);
-      return;
-    }
-
+  // Calculate overall progress
+  const overallProgress = useMemo(() => {
+    if (translationProgress.length === 0) return 0;
     const totalStrings = translationProgress.reduce((sum, p) => sum + p.total, 0);
     const processedStrings = translationProgress.reduce((sum, p) => sum + p.processed, 0);
-    
-    if (totalStrings === 0) {
-      setOverallProgress(0);
-    } else {
-      setOverallProgress(Math.round((processedStrings / totalStrings) * 100));
-    }
+    return totalStrings === 0 ? 0 : Math.round((processedStrings / totalStrings) * 100);
   }, [translationProgress]);
 
   // Cleanup on unmount
@@ -226,13 +216,10 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     if (!progress.startTime || progress.processed === 0) {
       return null;
     }
-
     const elapsedTime = (Date.now() - progress.startTime) / 1000;
     const rate = progress.processed / elapsedTime;
     const remaining = progress.total - progress.processed;
-    
     if (rate === 0) return null;
-    
     return remaining / rate;
   };
 
@@ -298,13 +285,13 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setCancelRequested(true);
-      
+
       setTranslationProgress(prev => prev.map(p => 
         p.status === 'processing' || p.status === 'initializing' || p.status === 'pending'
           ? { ...p, status: 'cancelled' as const }
           : p
       ));
-      
+
       setIsTranslating(false);
     }
   };
@@ -314,7 +301,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
    */
   const handleRetryLanguage = async (language: string) => {
     const missingKeys = scanData?.missingTranslations[language] || [];
-    
+
     setTranslationProgress(prev => prev.map(p =>
       p.language === language ? {
         ...p,
@@ -327,8 +314,12 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     ));
 
     try {
+      // Create new abort controller for the retry
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       await translateLanguage(language, missingKeys);
-      
+
       setTranslationProgress(prev => prev.map(p =>
         p.language === language ? { ...p, status: 'completed' as const, processed: p.total } : p
       ));
@@ -347,6 +338,8 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
           error: errorMessage
         } : p
       ));
+    } finally {
+      abortControllerRef.current = null;
     }
   };
 
@@ -384,7 +377,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
       setTranslationProgress(initialProgress);
 
       for (let i = 0; i < selectedLanguages.length; i++) {
-        if (cancelRequested || abortControllerRef.current?.signal.aborted) {
+        if (abortControllerRef.current?.signal.aborted) {
           break;
         }
 
@@ -401,9 +394,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
           } : p
         ));
 
-        
-
-        if (cancelRequested || abortControllerRef.current?.signal.aborted) {
+        if (abortControllerRef.current?.signal.aborted) {
           break;
         }
 
@@ -467,8 +458,8 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
     }
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      if (cancelRequested || abortControllerRef.current?.signal.aborted) {
-        throw new Error('Translation cancelled');
+      if (abortControllerRef.current?.signal.aborted) {
+        throw new DOMException('Translation cancelled', 'AbortError');
       }
 
       const batch = batches[batchIndex];
@@ -530,8 +521,8 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         setTranslationProgress(prev => prev.map(p => {
           if (p.language === language) {
             const newProcessed = Math.min(p.total, (batchIndex + 1) * batchSize);
-            const eta = calculateETA({ ...p, processed: newProcessed });
-            
+            const eta = p.startTime ? calculateETA({ ...p, processed: newProcessed }) : null;
+
             return {
               ...p,
               processed: newProcessed,
@@ -543,6 +534,7 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
         }));
 
         if (batchIndex < batches.length - 1) {
+          // Delay between batches to respect Gemini API rate limits
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
@@ -975,4 +967,4 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
   );
 };
 
-export default TranslationInterface
+export default TranslationInterface;
