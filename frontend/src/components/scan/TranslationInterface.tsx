@@ -585,8 +585,8 @@ const TranslationInterface: React.FC<TranslationInterfaceProps> = ({
                             </span>
                           )}
                           <LinearProgress
-                            variant="determinate"
-                            value={progress.total > 0 ? (progress.processed / progress.total) * 100 : 0}
+                            variant={progress.status === 'processing' ? 'indeterminate' : 'determinate'}
+                            value={progress.status === 'completed' ? 100 : 0}
                             sx={{
                               mt: 1,
                               height: 4,
