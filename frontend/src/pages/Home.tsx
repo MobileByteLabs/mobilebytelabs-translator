@@ -59,8 +59,8 @@ const Home: React.FC = () => {
   };
 
   const handleViewDemo = () => {
-    // For now, navigate to dashboard (later we can add a demo mode)
-    navigate('/dashboard');
+    // If user is not authenticated, this should go to login page
+    navigate('/login');
   };
 
   return (

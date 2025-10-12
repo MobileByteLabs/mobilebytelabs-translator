@@ -229,8 +229,8 @@ const Dashboard: React.FC = () => {
   }
 
   const handleLogout = async () => {
-    await AuthService.logout();
-    navigate('/');
+    await AuthService.logout(); // This clears the token
+    navigate('/login'); // Redirect to the login page
   };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, repoId: string) => {
